@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 
-import { Chip, SectionLabel } from '@/components/ui';
+import { SectionLabel } from '@/components/ui';
 import { colors, radius } from '@/constants/theme';
 import { useNow } from '@/hooks/useNow';
 import {
@@ -25,17 +25,6 @@ import { ME, setWeeklyAvailability, toggleAwayDay, useAppState } from '@/lib/sto
 
 const ROW_HEIGHT = 26;
 const AWAY_DAYS = 28;
-
-const PRESETS: { label: string; slots: () => number[] }[] = [
-  {
-    label: 'Weekday evenings',
-    slots: () => [1, 2, 3, 4, 5].flatMap((d) => [17, 18, 19, 20, 21].map((h) => slotKey(d, h))),
-  },
-  {
-    label: 'Weekend afternoons',
-    slots: () => [0, 6].flatMap((d) => [12, 13, 14, 15, 16, 17].map((h) => slotKey(d, h))),
-  },
-];
 
 function hourLabel(hour: number) {
   const date = new Date(2000, 0, 1, hour);
@@ -95,7 +84,6 @@ export default function AvailabilityScreen() {
   const isOn = (slot: number) =>
     painting?.has(slot) ? paintValue : weekly.has(slot);
 
-  const applyPreset = (slots: number[]) => setWeeklyAvailability([...weekly, ...slots]);
   const today = startOfDay(now);
   const pastThisWeek = new Date(today).getDay();
   const days = Array.from(
@@ -113,13 +101,6 @@ export default function AvailabilityScreen() {
         </Text>
 
         <SectionLabel>Your usual week</SectionLabel>
-        <View style={styles.presets}>
-          {PRESETS.map((preset) => (
-            <Chip key={preset.label} label={`+ ${preset.label}`} onPress={() => applyPreset(preset.slots())} />
-          ))}
-          <Chip label="Clear" onPress={() => setWeeklyAvailability([])} />
-        </View>
-
         <View style={styles.gridRow}>
           <View style={styles.hours}>
             <View style={styles.headerCell} />
@@ -204,12 +185,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 15,
     lineHeight: 21,
-  },
-  presets: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
   },
   gridRow: {
     flexDirection: 'row',
