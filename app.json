@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Scramble",
+    "slug": "scramble-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "scramble",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.averylewis.scramble",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.averylewis.scramble"
+    },
+    "web": {
+      "output": "static"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "owner": "mistermoneyman"
+  }
+}
