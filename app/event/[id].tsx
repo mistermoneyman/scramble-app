@@ -203,13 +203,22 @@ export default function EventScreen() {
                   ? 'None of these times fit your usual week. Vote anyway for any you can make.'
                   : unconfirmed.length === 0
                     ? `You've confirmed every time that fits your week (${fitting.length} of ${options.length}).`
-                    : `Your usual week fits ${fitting.length} of ${options.length} times. Confirm you can actually make ${fitting.length === 1 ? 'it' : 'them'}.`}
+                    : `Your usual week fits ${fitting.length} of ${options.length} times. Confirm you can actually make ${unconfirmed.length === 1 ? 'it' : 'them'}:`}
               </Text>
               {unconfirmed.length > 0 && (
+                <View style={styles.confirmList}>
+                  {unconfirmed.map((option) => (
+                    <View key={option.id} style={styles.confirmRow}>
+                      <Ionicons name="calendar-outline" size={16} color={colors.success} />
+                      <Text style={styles.confirmDay}>{formatDay(option.startsAt)}</Text>
+                      <Text style={styles.confirmTime}>{formatTime(option.startsAt)}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {unconfirmed.length > 0 && (
                 <Button
-                  label={
-                    unconfirmed.length === 1 ? 'I can make that one' : `I can make those ${unconfirmed.length}`
-                  }
+                  label={unconfirmed.length === 1 ? 'I can make it' : `I can make all ${unconfirmed.length}`}
                   icon="checkmark"
                   onPress={() => voteWhereFree(event.id)}
                 />
@@ -529,7 +538,7 @@ const styles = StyleSheet.create({
   },
   check: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 12,
     padding: 14,
     marginTop: 12,
@@ -547,5 +556,26 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 14,
     lineHeight: 20,
+  },
+  confirmList: {
+    gap: 6,
+  },
+  confirmRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: radius.md,
+    backgroundColor: colors.successSoft,
+  },
+  confirmDay: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  confirmTime: {
+    color: colors.textMuted,
+    fontSize: 15,
   },
 });
