@@ -170,7 +170,9 @@ export function createSeed(now: number): AppState {
       id: 'seed_pitch',
       orgId: 'startup',
       title: 'Pitch Night',
-      description: 'Five-minute pitches, friendly feedback, free pizza.',
+      description:
+        'Five-minute pitches, friendly feedback, free pizza.\n\n6:00  Doors open, pizza\n6:15  Opening remarks\n6:30  Pitches (8 teams)\n7:30  Judges’ feedback\n7:45  Networking',
+      speaker: 'Dana Whitfield, founder of Lumen Labs',
       creatorId: 'u_maya',
       createdAt: now - DAY,
       options: [

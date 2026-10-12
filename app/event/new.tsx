@@ -57,6 +57,7 @@ export default function NewEventScreen() {
   );
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [speaker, setSpeaker] = useState('');
   const [mode, setMode] = useState<Mode>('poll');
   const [day, setDay] = useState(() => startOfDay(Date.now(), 1));
   const [minutes, setMinutes] = useState(18 * 60);
@@ -134,6 +135,7 @@ export default function NewEventScreen() {
       orgId: org.id,
       title: title.trim(),
       description: description.trim(),
+      speaker: speaker.trim() || undefined,
       startTimes,
       pollClosesAt,
       lockIn: mode === 'lock',
@@ -165,9 +167,16 @@ export default function NewEventScreen() {
           style={styles.input}
         />
         <TextInput
+          value={speaker}
+          onChangeText={setSpeaker}
+          placeholder="Speaker (optional)"
+          placeholderTextColor={colors.textMuted}
+          style={styles.input}
+        />
+        <TextInput
           value={description}
           onChangeText={setDescription}
-          placeholder="What's the plan? (optional)"
+          placeholder={'Description and agenda (optional)\ne.g. 6:00 Doors open\n6:15 Pitches\n7:30 Networking'}
           placeholderTextColor={colors.textMuted}
           style={[styles.input, styles.multiline]}
           multiline
@@ -387,7 +396,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   multiline: {
-    minHeight: 80,
+    minHeight: 110,
     textAlignVertical: 'top',
   },
   suggestion: {

@@ -101,6 +101,7 @@ export function createEvent(input: {
   orgId: string;
   title: string;
   description: string;
+  speaker?: string;
   startTimes: number[];
   pollClosesAt: number;
   /** Skip the vote and confirm the only option right away. */
@@ -115,6 +116,7 @@ export function createEvent(input: {
     orgId: input.orgId,
     title: input.title,
     description: input.description,
+    speaker: input.speaker,
     creatorId: ME,
     createdAt,
     options,

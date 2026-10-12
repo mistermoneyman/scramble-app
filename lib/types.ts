@@ -43,7 +43,9 @@ export type OrgEvent = {
   id: string;
   orgId: string;
   title: string;
+  /** Description and agenda, free text. */
   description: string;
+  speaker?: string;
   creatorId: string;
   createdAt: number;
   options: EventOption[];

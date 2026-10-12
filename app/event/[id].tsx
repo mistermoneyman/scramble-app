@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { Button, EmptyState, OrgBadge, Pill, SectionLabel } from '@/components/ui';
+import { Avatar, Button, EmptyState, OrgBadge, Pill, SectionLabel } from '@/components/ui';
 import { colors, radius } from '@/constants/theme';
 import { useNow } from '@/hooks/useNow';
 import { fitAt, freeMembers, hasAvailability } from '@/lib/availability';
@@ -91,17 +91,35 @@ export default function EventScreen() {
     <>
       <Stack.Screen options={{ title: '' }} />
       <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.title}>{event.title}</Text>
         <Pressable
           style={styles.orgRow}
           onPress={() => router.push({ pathname: '/org/[id]', params: { id: org.id } })}>
-          <OrgBadge emoji={org.emoji} color={org.color} size={24} />
+          <OrgBadge emoji={org.emoji} color={org.color} size={20} />
           <Text style={styles.orgName}>{org.name}</Text>
         </Pressable>
-        <Text style={styles.title}>{event.title}</Text>
-        {!!event.description && <Text style={styles.description}>{event.description}</Text>}
         <Text style={styles.creator}>
           Started by {event.creatorId === ME ? 'you' : (creator?.name ?? 'someone')}
         </Text>
+
+        {!!event.speaker && (
+          <>
+            <SectionLabel>Speaker</SectionLabel>
+            <View style={styles.detailCard}>
+              <Avatar name={event.speaker} size={40} />
+              <Text style={styles.speaker}>{event.speaker}</Text>
+            </View>
+          </>
+        )}
+
+        {!!event.description && (
+          <>
+            <SectionLabel>Description & agenda</SectionLabel>
+            <View style={styles.detailCard}>
+              <Text style={styles.description}>{event.description}</Text>
+            </View>
+          </>
+        )}
 
         {open ? (
           <View style={[styles.banner, styles.bannerOpen]}>
@@ -301,32 +319,53 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
   },
+  title: {
+    color: colors.text,
+    fontSize: 34,
+    lineHeight: 40,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginTop: 8,
+  },
   orgRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    alignSelf: 'flex-start',
+    gap: 6,
+    alignSelf: 'center',
+    marginTop: 8,
   },
   orgName: {
     color: colors.textMuted,
+    fontSize: 15,
     fontWeight: '700',
-  },
-  title: {
-    color: colors.text,
-    fontSize: 28,
-    fontWeight: '800',
-    marginTop: 10,
-  },
-  description: {
-    color: colors.text,
-    fontSize: 16,
-    lineHeight: 23,
-    marginTop: 8,
   },
   creator: {
     color: colors.textMuted,
-    fontSize: 13,
-    marginTop: 8,
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  detailCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  speaker: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  description: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 15,
+    lineHeight: 22,
   },
   banner: {
     flexDirection: 'row',
