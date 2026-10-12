@@ -1,9 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Cart, type CartLine, DeliveryForm, MenuItem } from '@/components/PartnerOrder';
 import { Button, Card, Chip, EmptyState, Segmented, SectionLabel } from '@/components/ui';
 import { colors, radius } from '@/constants/theme';
 import { useNow } from '@/hooks/useNow';
@@ -23,9 +23,24 @@ const MODES: { value: Mode; label: string }[] = [
 
 const CATEGORIES: Category[] = ['Food', 'Supplies', 'Travel', 'Marketing', 'Events', 'Other'];
 
+const MINUTE = 60_000;
+const TIPS = [0, 10, 15, 20];
+
 function parseDollars(text: string) {
   const value = Number(text.replace(/[^0-9.]/g, ''));
   return Number.isFinite(value) ? Math.round(value * 100) : 0;
+}
+
+function roundUpToHalfHour(ts: number) {
+  const step = 30 * MINUTE;
+  return Math.ceil(ts / step) * step;
+}
+
+function tomorrowAt(now: number, hour: number) {
+  const date = new Date(now);
+  date.setDate(date.getDate() + 1);
+  date.setHours(hour, 0, 0, 0);
+  return date.getTime();
 }
 
 export default function NewRequestScreen() {
@@ -37,7 +52,12 @@ export default function NewRequestScreen() {
 
   const [mode, setMode] = useState<Mode>(params.mode === 'expense' ? 'expense' : 'partner');
   const [partnerId, setPartnerId] = useState(PARTNERS[0].id);
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [carts, setCarts] = useState<Record<string, CartLine[]>>({});
+  const [location, setLocation] = useState('');
+  const [chosenTime, setChosenTime] = useState<number | null>(null);
+  const [contactId, setContactId] = useState(ME);
+  const [instructions, setInstructions] = useState('');
+  const [tipPercent, setTipPercent] = useState(15);
   const [title, setTitle] = useState('');
   const [amountText, setAmountText] = useState('');
   const [category, setCategory] = useState<Category>('Supplies');
@@ -55,49 +75,62 @@ export default function NewRequestScreen() {
   }
 
   const partner = PARTNERS.find((candidate) => candidate.id === partnerId) ?? PARTNERS[0];
-  const items = partner.items
-    .filter((item) => (quantities[`${partner.id}:${item.id}`] ?? 0) > 0)
-    .map((item) => ({
-      name: item.name,
-      quantity: quantities[`${partner.id}:${item.id}`],
-      unitPrice: item.price,
-    }));
-  const amount =
-    mode === 'partner'
-      ? items.reduce((total, item) => total + item.quantity * item.unitPrice, 0)
-      : parseDollars(amountText);
-  const finalTitle = title.trim() || (mode === 'partner' ? `${partner.name} order` : '');
-  const free = available(state, org.id);
-  const otherOfficers = officerIds(org).filter((userId) => userId !== ME).length;
+  const cart = carts[partner.id] ?? [];
+  const setCart = (lines: CartLine[]) => setCarts((current) => ({ ...current, [partner.id]: lines }));
+  const subtotal = cart.reduce((total, line) => total + line.unitPrice * line.quantity, 0);
+  const deliveryFee = cart.length ? partner.deliveryFee : 0;
+  const tip = Math.round((subtotal * tipPercent) / 100);
+  const amount = mode === 'partner' ? subtotal + deliveryFee + tip : parseDollars(amountText);
+
   const events = state.events
     .filter((event) => event.orgId === org.id)
     .filter((event) => isPollOpen(event, now) || leadingOption(state, event).startsAt >= now);
+  const event = events.find((candidate) => candidate.id === eventId);
+  const eventStart = event && !isPollOpen(event, now) ? leadingOption(state, event).startsAt : undefined;
+  const earliest = roundUpToHalfHour(now + partner.leadMinutes * MINUTE);
+  const suggestedTime = eventStart !== undefined ? eventStart - 15 * MINUTE : tomorrowAt(now, 18);
+  const deliverAt = Math.max(chosenTime ?? suggestedTime, earliest);
+
+  const finalTitle =
+    title.trim() || (mode === 'partner' ? (event ? `Food for ${event.title}` : `${partner.name} order`) : '');
+  const free = available(state, org.id);
+  const otherOfficers = officerIds(org).filter((userId) => userId !== ME).length;
 
   const problem =
-    mode === 'partner' && items.length === 0
+    mode === 'partner' && cart.length === 0
       ? 'Add something to the order.'
-      : !finalTitle
-        ? 'Say what the money is for.'
-        : amount <= 0
-          ? 'Enter an amount.'
-          : amount > free
-            ? `That's more than the ${formatMoney(free)} available.`
-            : undefined;
-
-  const changeQuantity = (itemId: string, delta: number) => {
-    const key = `${partner.id}:${itemId}`;
-    setQuantities((current) => ({ ...current, [key]: Math.max(0, (current[key] ?? 0) + delta) }));
-  };
+      : mode === 'partner' && !location.trim()
+        ? 'Where should it be delivered?'
+        : !finalTitle
+          ? 'Say what the money is for.'
+          : amount <= 0
+            ? 'Enter an amount.'
+            : amount > free
+              ? `That's more than the ${formatMoney(free)} available.`
+              : undefined;
 
   const submit = () => {
     if (problem) return;
+    const partnerOrder = mode === 'partner';
     const requestId = createRequest({
       orgId: org.id,
       title: finalTitle,
       amount,
-      category: mode === 'partner' ? 'Food' : category,
-      vendorId: mode === 'partner' ? partner.id : undefined,
-      items: mode === 'partner' ? items : undefined,
+      category: partnerOrder ? 'Food' : category,
+      vendorId: partnerOrder ? partner.id : undefined,
+      items: partnerOrder
+        ? cart.map(({ name, quantity, unitPrice, details, note: lineNote }) => ({
+            name,
+            quantity,
+            unitPrice,
+            details: details || undefined,
+            note: lineNote || undefined,
+          }))
+        : undefined,
+      delivery: partnerOrder
+        ? { location: location.trim(), deliverAt, contactId, instructions: instructions.trim() }
+        : undefined,
+      charges: partnerOrder ? { subtotal, deliveryFee, tip } : undefined,
       eventId,
       note: note.trim(),
     });
@@ -112,8 +145,9 @@ export default function NewRequestScreen() {
         {mode === 'partner' ? (
           <>
             <Text style={styles.hint}>
-              University partners are already approved vendors, so there&apos;s no reimbursement
-              paperwork. Once every officer signs, the order is paid and placed.
+              University partners are already approved vendors. Build the order, say where and when
+              to deliver, and it&apos;s placed the moment every officer signs. No reimbursement
+              paperwork.
             </Text>
             <SectionLabel>Partner</SectionLabel>
             <View style={styles.partners}>
@@ -134,37 +168,18 @@ export default function NewRequestScreen() {
             </View>
             <Text style={styles.hint}>{partner.blurb}</Text>
 
-            <SectionLabel>Order</SectionLabel>
-            <Card style={styles.menu}>
-              {partner.items.map((item) => {
-                const quantity = quantities[`${partner.id}:${item.id}`] ?? 0;
-                return (
-                  <View key={item.id} style={styles.menuRow}>
-                    <View style={styles.flex}>
-                      <Text style={styles.menuName}>{item.name}</Text>
-                      <Text style={styles.muted}>{formatMoney(item.price)}</Text>
-                    </View>
-                    <Pressable
-                      hitSlop={8}
-                      onPress={() => changeQuantity(item.id, -1)}
-                      disabled={quantity === 0}
-                      accessibilityLabel={`Remove one ${item.name}`}>
-                      <Ionicons
-                        name="remove-circle-outline"
-                        size={28}
-                        color={quantity ? colors.primary : colors.border}
-                      />
-                    </Pressable>
-                    <Text style={styles.quantity}>{quantity}</Text>
-                    <Pressable
-                      hitSlop={8}
-                      onPress={() => changeQuantity(item.id, 1)}
-                      accessibilityLabel={`Add one ${item.name}`}>
-                      <Ionicons name="add-circle" size={28} color={colors.primary} />
-                    </Pressable>
-                  </View>
-                );
-              })}
+            <SectionLabel>Menu</SectionLabel>
+            {partner.items.map((item) => (
+              <MenuItem
+                key={`${partner.id}:${item.id}`}
+                item={item}
+                onAdd={(line) => setCart([...cart, line])}
+              />
+            ))}
+
+            <SectionLabel>Your order</SectionLabel>
+            <Card>
+              <Cart lines={cart} onChange={setCart} />
             </Card>
           </>
         ) : (
@@ -199,36 +214,76 @@ export default function NewRequestScreen() {
           </>
         )}
 
-        {mode === 'partner' && (
-          <>
-            <SectionLabel>Name</SectionLabel>
-            <TextInput
-              value={title}
-              onChangeText={setTitle}
-              placeholder={`${partner.name} order`}
-              placeholderTextColor={colors.textMuted}
-              style={styles.input}
-            />
-          </>
-        )}
-
         {events.length > 0 && (
           <>
             <SectionLabel>For an event? (optional)</SectionLabel>
             <View style={styles.chips}>
-              {events.map((event) => (
+              {events.map((option) => (
                 <Chip
-                  key={event.id}
+                  key={option.id}
                   label={
-                    isPollOpen(event, now)
-                      ? `${event.title} (date TBD)`
-                      : `${event.title} · ${formatDay(leadingOption(state, event).startsAt)}`
+                    isPollOpen(option, now)
+                      ? `${option.title} (date TBD)`
+                      : `${option.title} · ${formatDay(leadingOption(state, option).startsAt)}`
                   }
-                  selected={eventId === event.id}
-                  onPress={() => setEventId(eventId === event.id ? undefined : event.id)}
+                  selected={eventId === option.id}
+                  onPress={() => {
+                    setEventId(eventId === option.id ? undefined : option.id);
+                    setChosenTime(null);
+                  }}
                 />
               ))}
             </View>
+          </>
+        )}
+
+        {mode === 'partner' && (
+          <>
+            <SectionLabel>Delivery</SectionLabel>
+            {eventStart !== undefined && chosenTime === null && (
+              <Text style={[styles.hint, styles.hintTop]}>
+                Timed to arrive 15 minutes before {event?.title} starts.
+              </Text>
+            )}
+            {event && eventStart === undefined && (
+              <Text style={[styles.hint, styles.hintTop]}>
+                {event.title} is still voting on a date, so pick a delivery time.
+              </Text>
+            )}
+            <DeliveryForm
+              location={location}
+              onLocation={setLocation}
+              deliverAt={deliverAt}
+              onDeliverAt={setChosenTime}
+              earliest={earliest}
+              contactId={contactId}
+              onContact={setContactId}
+              officers={officerIds(org).map((userId) => state.users[userId])}
+              instructions={instructions}
+              onInstructions={setInstructions}
+              now={now}
+            />
+
+            <SectionLabel>Tip for the driver</SectionLabel>
+            <View style={styles.chips}>
+              {TIPS.map((percent) => (
+                <Chip
+                  key={percent}
+                  label={percent ? `${percent}%` : 'None'}
+                  selected={percent === tipPercent}
+                  onPress={() => setTipPercent(percent)}
+                />
+              ))}
+            </View>
+
+            <SectionLabel>Name</SectionLabel>
+            <TextInput
+              value={title}
+              onChangeText={setTitle}
+              placeholder={finalTitle}
+              placeholderTextColor={colors.textMuted}
+              style={styles.input}
+            />
           </>
         )}
 
@@ -244,6 +299,13 @@ export default function NewRequestScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        {mode === 'partner' && cart.length > 0 && (
+          <Text style={styles.breakdown}>
+            Food {formatMoney(subtotal)}
+            {deliveryFee ? ` · Delivery ${formatMoney(deliveryFee)}` : ' · Free delivery'}
+            {tip ? ` · Tip ${formatMoney(tip)}` : ''} · No sales tax
+          </Text>
+        )}
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>Total</Text>
           <Text style={styles.total}>{formatMoney(amount)}</Text>
@@ -251,8 +313,8 @@ export default function NewRequestScreen() {
         <Text style={styles.footerNote}>
           {problem ??
             (otherOfficers
-              ? `You sign first, then ${otherOfficers} other ${otherOfficers === 1 ? 'officer signs' : 'officers sign'}. ${formatMoney(free)} available.`
-              : `You're the only officer, so this is paid as soon as you sign.`)}
+              ? `You sign first, then ${otherOfficers} other ${otherOfficers === 1 ? 'officer signs' : 'officers sign'}.${mode === 'partner' ? ` The order goes to ${partner.name} the moment the last one does.` : ` ${formatMoney(free)} available.`}`
+              : `You're the only officer, so this is ${mode === 'partner' ? 'ordered' : 'paid'} as soon as you sign.`)}
         </Text>
         <Button label="Sign and send" icon="create-outline" disabled={!!problem} onPress={submit} />
       </View>
@@ -273,6 +335,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     marginTop: 10,
+  },
+  hintTop: {
+    marginTop: 0,
+    marginBottom: 8,
+  },
+  breakdown: {
+    color: colors.textMuted,
+    fontSize: 12,
   },
   muted: {
     color: colors.textMuted,
@@ -305,27 +375,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     textAlign: 'center',
-  },
-  menu: {
-    padding: 4,
-  },
-  menuRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 12,
-  },
-  menuName: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  quantity: {
-    minWidth: 20,
-    textAlign: 'center',
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '800',
   },
   input: {
     backgroundColor: colors.surface,

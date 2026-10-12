@@ -86,6 +86,24 @@ export type LineItem = {
   name: string;
   quantity: number;
   unitPrice: number;
+  /** Chosen options, e.g. "Large 14" · Thin · Mushrooms". */
+  details?: string;
+  note?: string;
+};
+
+export type Delivery = {
+  location: string;
+  deliverAt: number;
+  /** Who the driver calls on arrival. */
+  contactId: string;
+  instructions: string;
+};
+
+/** Breakdown of a partner order total. Cents. */
+export type OrderCharges = {
+  subtotal: number;
+  deliveryFee: number;
+  tip: number;
 };
 
 export type Signature = {
@@ -101,6 +119,10 @@ export type FundRequest = {
   category: Category;
   vendorId?: string;
   items?: LineItem[];
+  delivery?: Delivery;
+  charges?: OrderCharges;
+  /** The partner's confirmation number, set once paid and placed. */
+  orderNumber?: string;
   eventId?: string;
   note: string;
   requestedBy: string;

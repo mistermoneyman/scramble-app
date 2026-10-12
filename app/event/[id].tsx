@@ -15,6 +15,7 @@ import {
   formatMoney,
   formatTime,
 } from '@/lib/format';
+import { orderStatusLabel } from '@/lib/orders';
 import { requestStatus } from '@/lib/orgRules';
 import { findPartner } from '@/lib/partners';
 import { isMember, isPollOpen, leadingOption, voteCount } from '@/lib/selectors';
@@ -277,7 +278,11 @@ export default function EventScreen() {
                     <Text style={styles.optionDate}>{request.title}</Text>
                     <Text style={styles.voters}>
                       {formatMoney(request.amount)} ·{' '}
-                      {status === 'paid' ? 'Paid and ordered' : status === 'rejected' ? 'Declined' : 'Waiting on officer signatures'}
+                      {status === 'paid'
+                        ? `${orderStatusLabel(request, now) ?? 'Paid and ordered'}${request.delivery ? ` · arrives ${formatDateTime(request.delivery.deliverAt)}` : ''}`
+                        : status === 'rejected'
+                          ? 'Declined'
+                          : 'Waiting on officer signatures'}
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />

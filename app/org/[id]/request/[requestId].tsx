@@ -2,8 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Card, EmptyState, SectionLabel } from '@/components/ui';
+import { Avatar, Button, Card, EmptyState, type IconName, SectionLabel } from '@/components/ui';
 import { colors, radius } from '@/constants/theme';
+import { useNow } from '@/hooks/useNow';
+import { orderSteps } from '@/lib/orders';
 import { confirm } from '@/lib/confirm';
 import { formatDate, formatDateTime, formatMoney } from '@/lib/format';
 import {
@@ -21,6 +23,7 @@ import { ME, rejectRequest, signRequest, useAppState } from '@/lib/store';
 export default function RequestScreen() {
   const { id, requestId } = useLocalSearchParams<{ id: string; requestId: string }>();
   const state = useAppState();
+  const now = useNow(30_000);
   const org = state.orgs.find((candidate) => candidate.id === id);
   const request = state.requests.find((candidate) => candidate.id === requestId);
 
@@ -34,6 +37,7 @@ export default function RequestScreen() {
   const needsMe = status === 'pending' && missing.includes(ME);
   const event = request.eventId && state.events.find((candidate) => candidate.id === request.eventId);
   const requester = state.users[request.requestedBy];
+  const steps = orderSteps(request, now);
 
   const signerIds =
     status === 'pending'
@@ -58,6 +62,7 @@ export default function RequestScreen() {
             <Ionicons name="checkmark-circle" size={22} color={colors.success} />
             <Text style={styles.bannerText}>
               {partner ? 'Paid and ordered' : 'Paid'} {formatDateTime(request.paidAt!)}
+              {request.orderNumber ? ` · #${request.orderNumber}` : ''}
             </Text>
           </View>
         )}
@@ -80,18 +85,88 @@ export default function RequestScreen() {
           </View>
         )}
 
+        {steps && (
+          <>
+            <SectionLabel>
+              {partner?.name} order {request.orderNumber ? `#${request.orderNumber}` : ''}
+            </SectionLabel>
+            <Card style={styles.tracker}>
+              {steps.map((step, index) => (
+                <View key={step.label} style={styles.step}>
+                  <View style={styles.stepRail}>
+                    <View style={[styles.stepDot, step.done && styles.stepDotDone]}>
+                      {step.done && <Ionicons name="checkmark" size={12} color="#fff" />}
+                    </View>
+                    {index < steps.length - 1 && (
+                      <View style={[styles.stepLine, steps[index + 1].done && styles.stepLineDone]} />
+                    )}
+                  </View>
+                  <View style={styles.flex}>
+                    <Text style={[styles.stepLabel, !step.done && styles.stepPending]}>
+                      {step.label}
+                    </Text>
+                    <Text style={styles.muted}>
+                      {step.done ? '' : 'Around '}
+                      {formatDateTime(step.at)}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </Card>
+          </>
+        )}
+
         {request.items && request.items.length > 0 && (
           <>
             <SectionLabel>Order</SectionLabel>
             <Card style={styles.items}>
-              {request.items.map((item) => (
-                <View key={item.name} style={styles.itemRow}>
+              {request.items.map((item, index) => (
+                <View key={`${item.name}${index}`} style={styles.itemRow}>
                   <Text style={styles.itemQty}>{item.quantity}×</Text>
-                  <Text style={styles.itemName}>{item.name}</Text>
+                  <View style={styles.flex}>
+                    <Text style={styles.itemName}>{item.name}</Text>
+                    {!!item.details && <Text style={styles.muted}>{item.details}</Text>}
+                    {!!item.note && <Text style={styles.itemNote}>“{item.note}”</Text>}
+                  </View>
                   <Text style={styles.itemPrice}>{formatMoney(item.quantity * item.unitPrice)}</Text>
                 </View>
               ))}
+              {request.charges && (
+                <View style={styles.charges}>
+                  <ChargeLine label="Food" value={request.charges.subtotal} />
+                  <ChargeLine label="Delivery" value={request.charges.deliveryFee} />
+                  <ChargeLine label="Tip" value={request.charges.tip} />
+                  <ChargeLine label="Sales tax (university is exempt)" value={0} />
+                  <ChargeLine label="Total" value={request.amount} bold />
+                </View>
+              )}
             </Card>
+          </>
+        )}
+
+        {request.delivery && (
+          <>
+            <SectionLabel>Delivery</SectionLabel>
+            <Card style={styles.items}>
+              <DetailRow icon="location-outline" text={request.delivery.location} />
+              <DetailRow icon="time-outline" text={formatDateTime(request.delivery.deliverAt)} />
+              <DetailRow
+                icon="call-outline"
+                text={`Driver calls ${
+                  request.delivery.contactId === ME
+                    ? 'you'
+                    : (state.users[request.delivery.contactId]?.name ?? 'an officer')
+                }`}
+              />
+              {!!request.delivery.instructions && (
+                <DetailRow icon="chatbox-ellipses-outline" text={request.delivery.instructions} />
+              )}
+            </Card>
+            {status === 'pending' && request.delivery.deliverAt - now < 2 * 60 * 60 * 1000 && (
+              <Text style={[styles.muted, styles.urgent]}>
+                Delivery is soon. The order can only be placed once every officer has signed.
+              </Text>
+            )}
           </>
         )}
 
@@ -172,7 +247,107 @@ export default function RequestScreen() {
   );
 }
 
+function ChargeLine({ label, value, bold }: { label: string; value: number; bold?: boolean }) {
+  return (
+    <View style={styles.chargeLine}>
+      <Text style={[styles.chargeLabel, bold && styles.chargeBold]}>{label}</Text>
+      <Text style={[styles.chargeLabel, bold && styles.chargeBold]}>{formatMoney(value)}</Text>
+    </View>
+  );
+}
+
+function DetailRow({ icon, text }: { icon: IconName; text: string }) {
+  return (
+    <View style={styles.detailRow}>
+      <Ionicons name={icon} size={18} color={colors.primary} />
+      <Text style={styles.detailText}>{text}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  tracker: {
+    paddingVertical: 12,
+  },
+  step: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  stepRail: {
+    alignItems: 'center',
+    width: 20,
+  },
+  stepDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  stepDotDone: {
+    borderColor: colors.success,
+    backgroundColor: colors.success,
+  },
+  stepLine: {
+    flex: 1,
+    width: 2,
+    minHeight: 18,
+    backgroundColor: colors.border,
+  },
+  stepLineDone: {
+    backgroundColor: colors.success,
+  },
+  stepLabel: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  stepPending: {
+    color: colors.textMuted,
+  },
+  itemNote: {
+    color: colors.text,
+    fontSize: 13,
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  charges: {
+    gap: 4,
+    paddingTop: 10,
+    marginTop: 4,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  chargeLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  chargeLabel: {
+    color: colors.textMuted,
+    fontSize: 13,
+  },
+  chargeBold: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  detailText: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  urgent: {
+    marginTop: 8,
+  },
   content: {
     padding: 20,
     paddingBottom: 40,

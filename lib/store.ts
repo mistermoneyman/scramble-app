@@ -3,6 +3,8 @@ import { useSyncExternalStore } from 'react';
 import { academicYearStart, termEnd } from './academicYear';
 import { fitAt } from './availability';
 import { findDepartment } from './departments';
+import { makeOrderNumber } from './orders';
+import { findPartner } from './partners';
 import { formatLongDate, formatMoney } from './format';
 import {
   activeCard,
@@ -23,10 +25,12 @@ import { createSeed, ME } from './seed';
 import type {
   AppState,
   Category,
+  Delivery,
   EventOption,
   LineItem,
   OfficerCard,
   OfficerRole,
+  OrderCharges,
   Org,
   OrgEvent,
   ThreadId,
@@ -218,10 +222,25 @@ function settle(s: AppState, orgId: string): AppState {
     };
     next = {
       ...next,
-      requests: next.requests.map((r) => (r.id === request.id ? { ...r, paidAt: at } : r)),
+      requests: next.requests.map((r) =>
+        r.id === request.id
+          ? {
+              ...r,
+              paidAt: at,
+              orderNumber: request.vendorId ? makeOrderNumber(request.vendorId) : undefined,
+            }
+          : r,
+      ),
       transactions: [...next.transactions, transaction],
     };
-    next = log(next, orgId, `${formatMoney(request.amount)} paid out for ${request.title}`);
+    const partner = findPartner(request.vendorId);
+    next = log(
+      next,
+      orgId,
+      partner
+        ? `${formatMoney(request.amount)} paid and order placed with ${partner.name}`
+        : `${formatMoney(request.amount)} paid out for ${request.title}`,
+    );
   }
   return next;
 }
@@ -307,6 +326,8 @@ export function createRequest(input: {
   category: Category;
   vendorId?: string;
   items?: LineItem[];
+  delivery?: Delivery;
+  charges?: OrderCharges;
   eventId?: string;
   note: string;
 }) {
