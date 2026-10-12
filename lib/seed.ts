@@ -489,7 +489,7 @@ export function createSeed(now: number): AppState {
         deactivatedAt: now - 60 * DAY,
         deactivatedReason: 'Marcus Johnson stopped being Treasurer',
       },
-      card('seed_c_me_photo', 'photo', ME, '1937', 70, true),
+      card('seed_c_me_photo', 'photo', ME, '1937', 3, false),
       card('seed_c_nina', 'photo', 'u_nina', '6604', 70, true),
       card('seed_c_marcus', 'soccer', 'u_marcus', '5502', 50, true),
       card('seed_c_priya', 'debate', 'u_priya', '7710', 50, true),

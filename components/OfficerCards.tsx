@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Card, Chip, Pill, SectionLabel } from '@/components/ui';
+import { AddToWalletSheet, CardFace, WALLET } from '@/components/WalletCard';
 import { colors, radius } from '@/constants/theme';
 import { confirm } from '@/lib/confirm';
 import { firstName, formatDate, formatLongDate, formatMoney } from '@/lib/format';
@@ -16,7 +18,6 @@ import {
   ROLE_LABELS,
 } from '@/lib/orgRules';
 import {
-  addCardToWallet,
   deactivateCard,
   issueCard,
   ME,
@@ -27,14 +28,8 @@ import type { AppState, OfficerCard, Org } from '@/lib/types';
 
 const LIMITS = [10000, 25000, 50000, 100000];
 
-const WALLET = Platform.OS === 'android' ? 'Google Wallet' : 'Apple Wallet';
-
-function expiryShort(at: number) {
-  const date = new Date(at);
-  return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getFullYear()).slice(-2)}`;
-}
-
 export function OfficerCards({ state, org, now }: { state: AppState; org: Org; now: number }) {
+  const [adding, setAdding] = useState(false);
   const settings = state.cardSettings[org.id];
   if (!settings) return null;
 
@@ -59,27 +54,19 @@ export function OfficerCards({ state, org, now }: { state: AppState; org: Org; n
 
       {mine ? (
         <>
-          <View style={[styles.card, settings.frozen && styles.cardFrozen]}>
-            <View style={styles.cardTop}>
-              <Text style={styles.cardOrg}>{org.name}</Text>
-              {settings.frozen ? (
-                <Pill label="Frozen" tone="neutral" />
-              ) : (
-                <Ionicons name="wifi" size={20} color="rgba(255,255,255,0.75)" style={styles.contactless} />
-              )}
-            </View>
-            <Text style={styles.cardNumber}>•••• •••• •••• {mine.last4}</Text>
-            <View style={styles.cardBottom}>
-              <View>
-                <Text style={styles.cardCaption}>Officer</Text>
-                <Text style={styles.cardValue}>{state.users[ME]?.name}</Text>
-              </View>
-              <View>
-                <Text style={styles.cardCaption}>Expires</Text>
-                <Text style={styles.cardValue}>{expiryShort(mine.expiresAt)}</Text>
-              </View>
-            </View>
-          </View>
+          <CardFace
+            orgName={org.name}
+            holderName={state.users[ME]?.name ?? ''}
+            card={mine}
+            frozen={settings.frozen}
+          />
+          <AddToWalletSheet
+            card={mine}
+            orgName={org.name}
+            holderName={state.users[ME]?.name ?? ''}
+            visible={adding}
+            onClose={() => setAdding(false)}
+          />
           {mine.inWallet ? (
             <Text style={[styles.muted, styles.note]}>
               <Ionicons name="checkmark-circle" size={14} color={colors.success} /> In your {WALLET}. It
@@ -88,7 +75,7 @@ export function OfficerCards({ state, org, now }: { state: AppState; org: Org; n
             </Text>
           ) : (
             <Pressable
-              onPress={() => addCardToWallet(mine.id)}
+              onPress={() => setAdding(true)}
               style={({ pressed }) => [styles.wallet, pressed && styles.pressed]}>
               <Ionicons name="wallet" size={20} color="#fff" />
               <Text style={styles.walletText}>Add to {WALLET}</Text>
@@ -134,6 +121,7 @@ export function OfficerCards({ state, org, now }: { state: AppState; org: Org; n
                   {status === 'expired' && `Expired ${formatLongDate(card.expiresAt)}`}
                   {status === 'deactivated' &&
                     `Off since ${formatDate(card.deactivatedAt!)} · ${card.deactivatedReason}`}
+                  {status !== 'active' && card.inWallet && ` · removed from ${WALLET}`}
                 </Text>
               </View>
               {status === 'active' ? (
@@ -205,51 +193,6 @@ const styles = StyleSheet.create({
   },
   note: {
     marginTop: 10,
-  },
-  card: {
-    padding: 20,
-    gap: 14,
-    borderRadius: radius.lg,
-    backgroundColor: colors.text,
-    aspectRatio: 1.586,
-    justifyContent: 'space-between',
-  },
-  cardFrozen: {
-    opacity: 0.55,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  contactless: {
-    transform: [{ rotate: '90deg' }],
-  },
-  cardOrg: {
-    color: colors.accent,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  cardNumber: {
-    color: '#fff',
-    fontSize: 19,
-    letterSpacing: 2,
-    fontWeight: '600',
-  },
-  cardBottom: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  cardCaption: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  cardValue: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
   },
   wallet: {
     flexDirection: 'row',
