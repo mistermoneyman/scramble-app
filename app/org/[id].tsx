@@ -64,17 +64,10 @@ export default function OrgScreen() {
         </Text>
         <View style={styles.actions}>
           <Button label={`Join ${org.name}`} icon="add" onPress={() => joinOrg(org.id)} />
-          <Button
-            label="See events"
-            variant="secondary"
-            onPress={() =>
-              router.navigate({ pathname: '/events', params: { scope: 'university', org: org.id } })
-            }
-          />
         </View>
         <Text style={styles.note}>
-          Joining lets you chat with the group, vote on event dates, and message other members
-          directly.
+          Joining lets you chat with the group, see its events and vote on dates, and message other
+          members directly.
         </Text>
       </ScrollView>
     </>

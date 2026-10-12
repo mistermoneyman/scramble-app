@@ -18,7 +18,7 @@ import {
 import { requestStatus } from '@/lib/orgRules';
 import { findPartner } from '@/lib/partners';
 import { isMember, isPollOpen, leadingOption, voteCount } from '@/lib/selectors';
-import { closePoll, ME, toggleVote, useAppState, voteWhereFree } from '@/lib/store';
+import { closePoll, joinOrg, ME, toggleVote, useAppState, voteWhereFree } from '@/lib/store';
 
 export default function EventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -29,6 +29,21 @@ export default function EventScreen() {
 
   if (!event || !org) {
     return <EmptyState icon="calendar-outline" title="Event not found" />;
+  }
+
+  if (!isMember(org)) {
+    return (
+      <EmptyState
+        icon="lock-closed-outline"
+        title={`Only ${org.name} members can see this`}
+        body="Join the org to see its events and vote on dates.">
+        <Button
+          label={`Join ${org.name}`}
+          icon="add"
+          onPress={() => joinOrg(org.id)}
+        />
+      </EmptyState>
+    );
   }
 
   const open = isPollOpen(event, now);
