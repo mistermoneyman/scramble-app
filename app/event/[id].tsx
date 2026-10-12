@@ -89,15 +89,28 @@ export default function EventScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: '' }} />
+      <Stack.Screen
+        options={{
+          title: event.title,
+          headerTitleAlign: 'center',
+          headerTitle: () => (
+            <View style={styles.header}>
+              <Text style={styles.title} numberOfLines={1}>
+                {event.title}
+              </Text>
+              <Pressable
+                style={styles.orgRow}
+                onPress={() => router.push({ pathname: '/org/[id]', params: { id: org.id } })}>
+                <OrgBadge emoji={org.emoji} color={org.color} size={14} />
+                <Text style={styles.orgName} numberOfLines={1}>
+                  {org.name}
+                </Text>
+              </Pressable>
+            </View>
+          ),
+        }}
+      />
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>{event.title}</Text>
-        <Pressable
-          style={styles.orgRow}
-          onPress={() => router.push({ pathname: '/org/[id]', params: { id: org.id } })}>
-          <OrgBadge emoji={org.emoji} color={org.color} size={20} />
-          <Text style={styles.orgName}>{org.name}</Text>
-        </Pressable>
         <Text style={styles.creator}>
           Started by {event.creatorId === ME ? 'you' : (creator?.name ?? 'someone')}
         </Text>
@@ -317,33 +330,34 @@ export default function EventScreen() {
 const styles = StyleSheet.create({
   content: {
     padding: 20,
+    paddingTop: 4,
     paddingBottom: 40,
+  },
+  header: {
+    alignItems: 'center',
+    maxWidth: 260,
   },
   title: {
     color: colors.text,
-    fontSize: 34,
-    lineHeight: 40,
+    fontSize: 20,
+    lineHeight: 24,
     fontWeight: '800',
-    textAlign: 'center',
-    marginTop: 8,
   },
   orgRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    alignSelf: 'center',
-    marginTop: 8,
+    gap: 4,
   },
   orgName: {
     color: colors.textMuted,
-    fontSize: 15,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '700',
   },
   creator: {
     color: colors.textMuted,
     fontSize: 12,
     textAlign: 'center',
-    marginTop: 4,
   },
   detailCard: {
     flexDirection: 'row',
