@@ -27,6 +27,7 @@ export default function ReportScreen() {
   const spending = report.transactions.filter((t) => t.direction === 'out');
   const approved = spending.filter((t) => t.method === 'request').length;
   const card = spending.filter((t) => t.method === 'card').length;
+  const transfers = spending.filter((t) => t.method === 'transfer').length;
   const maxCategory = Math.max(1, ...report.spendByCategory.map(([, amount]) => amount));
   const partnerShare = report.moneyOut ? Math.round((report.partnerSpend / report.moneyOut) * 100) : 0;
 
@@ -77,7 +78,11 @@ export default function ReportScreen() {
           />
           <Control
             icon="card-outline"
-            text={`${card} card ${card === 1 ? 'purchase' : 'purchases'} within the monthly limit`}
+            text={`${card} card ${card === 1 ? 'purchase' : 'purchases'}, each tagged with who paid and what it was for`}
+          />
+          <Control
+            icon="business-outline"
+            text={`${transfers} ${transfers === 1 ? 'payment' : 'payments'} to campus offices, settled inside the university`}
           />
           <Control
             icon="storefront-outline"

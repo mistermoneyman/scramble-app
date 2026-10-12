@@ -65,10 +65,20 @@ export type Transaction = {
   amount: number;
   description: string;
   category: Category | IncomeSource;
-  method: 'deposit' | 'request' | 'card';
+  /**
+   * card: tapped at an outside store with an officer's wallet card.
+   * transfer: paid to a university department, moved account to account.
+   */
+  method: 'deposit' | 'request' | 'card' | 'transfer';
   vendorId?: string;
   requestId?: string;
   cardId?: string;
+  /** Store name for card purchases. */
+  merchant?: string;
+  departmentId?: string;
+  eventId?: string;
+  /** Officer who made the payment. */
+  byId?: string;
   at: number;
 };
 

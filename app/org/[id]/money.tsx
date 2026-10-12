@@ -3,7 +3,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { OfficerCards } from '@/components/OfficerCards';
-import { Button, Card, EmptyState, Pill, SectionLabel } from '@/components/ui';
+import { Card, EmptyState, type IconName, Pill, SectionLabel } from '@/components/ui';
 import { colors } from '@/constants/theme';
 import { useNow } from '@/hooks/useNow';
 import { firstName, formatDate, formatMoney } from '@/lib/format';
@@ -17,6 +17,7 @@ import {
   orgTransactions,
   requestStatus,
 } from '@/lib/orgRules';
+import { findDepartment } from '@/lib/departments';
 import { findPartner } from '@/lib/partners';
 import { isMember } from '@/lib/selectors';
 import { ME, useAppState } from '@/lib/store';
@@ -47,6 +48,8 @@ export default function MoneyScreen() {
 
   const openNew = (mode: 'partner' | 'expense') =>
     router.push({ pathname: '/org/[id]/request/new', params: { id: org.id, mode } });
+  const openPay = (mode: 'card' | 'university') =>
+    router.push({ pathname: '/org/[id]/pay', params: { id: org.id, mode } });
   const openRequest = (requestId: string) =>
     router.push({ pathname: '/org/[id]/request/[requestId]', params: { id: org.id, requestId } });
 
@@ -65,21 +68,33 @@ export default function MoneyScreen() {
         </Card>
 
         {officer ? (
-          <View style={styles.actions}>
-            <Button
-              label="Order from a partner"
+          <Card style={styles.spend}>
+            <SpendOption
+              icon="phone-portrait-outline"
+              title="Pay at a store"
+              body="Off-campus, like printing at Office Depot. Say what it's for, then tap your phone."
+              onPress={() => openPay('card')}
+            />
+            <SpendOption
+              icon="business-outline"
+              title="Pay the university"
+              body="Campus offices like the print center or room bookings. Moved account to account, no card."
+              onPress={() => openPay('university')}
+            />
+            <SpendOption
               icon="restaurant-outline"
+              title="Order from a partner"
+              body="Approved campus food vendors. Every officer signs, then it's ordered."
               onPress={() => openNew('partner')}
-              style={styles.flex}
             />
-            <Button
-              label="Request funds"
+            <SpendOption
               icon="cash-outline"
-              variant="secondary"
+              title="Request funds"
+              body="Reimbursements and bigger purchases. Every officer signs."
               onPress={() => openNew('expense')}
-              style={styles.flex}
+              last
             />
-          </View>
+          </Card>
         ) : (
           <Text style={[styles.muted, styles.note]}>
             Members can see every transaction. Only officers can request or approve spending.
@@ -106,11 +121,13 @@ export default function MoneyScreen() {
         {transactions.map((transaction) => {
           const incoming = transaction.direction === 'in';
           const partner = findPartner(transaction.vendorId);
+          const department = findDepartment(transaction.departmentId);
+          const emoji = partner?.emoji ?? department?.emoji;
           const body = (
             <>
               <View style={[styles.txIcon, incoming ? styles.txIn : styles.txOut]}>
-                {partner ? (
-                  <Text>{partner.emoji}</Text>
+                {emoji ? (
+                  <Text>{emoji}</Text>
                 ) : (
                   <Ionicons
                     name={incoming ? 'arrow-down' : transaction.method === 'card' ? 'card-outline' : 'arrow-up'}
@@ -125,7 +142,12 @@ export default function MoneyScreen() {
                 </Text>
                 <Text style={styles.muted}>
                   {transaction.category} · {formatDate(transaction.at)}
-                  {transaction.method === 'card' ? ` · ${cardLabel(transaction.cardId)}` : ''}
+                  {transaction.method === 'card'
+                    ? ` · ${transaction.merchant ? `${transaction.merchant} · ` : ''}${cardLabel(transaction.cardId)}`
+                    : ''}
+                  {transaction.method === 'transfer' && department
+                    ? ` · University transfer to ${department.name}`
+                    : ''}
                   {transaction.method === 'request' ? ' · Officer approved' : ''}
                 </Text>
               </View>
@@ -164,6 +186,35 @@ export default function MoneyScreen() {
         )}
       </ScrollView>
     </>
+  );
+}
+
+function SpendOption({
+  icon,
+  title,
+  body,
+  onPress,
+  last,
+}: {
+  icon: IconName;
+  title: string;
+  body: string;
+  onPress: () => void;
+  last?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.spendRow, !last && styles.spendDivider, pressed && styles.pressed]}>
+      <View style={styles.spendIcon}>
+        <Ionicons name={icon} size={20} color={colors.primary} />
+      </View>
+      <View style={styles.flex}>
+        <Text style={styles.txTitle}>{title}</Text>
+        <Text style={styles.muted}>{body}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+    </Pressable>
   );
 }
 
@@ -225,10 +276,28 @@ const styles = StyleSheet.create({
   note: {
     marginTop: 10,
   },
-  actions: {
-    flexDirection: 'row',
-    gap: 10,
+  spend: {
     marginTop: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 14,
+  },
+  spendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+  },
+  spendDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  spendIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primarySoft,
   },
   request: {
     flexDirection: 'row',

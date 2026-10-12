@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 
 import { academicYearStart, termEnd } from './academicYear';
 import { fitAt } from './availability';
+import { findDepartment } from './departments';
 import { formatLongDate, formatMoney } from './format';
 import {
   activeCard,
@@ -9,6 +10,7 @@ import {
   available,
   canManageCard,
   canManageRoster,
+  cardSpendThisMonth,
   cardStatus,
   isOfficer,
   missingSigners,
@@ -434,6 +436,80 @@ function syncCards(s: AppState, orgId: string, before: Org['officers']): AppStat
     if (replacement) next = withCard(next, orgId, replacement);
   }
   return next;
+}
+
+type PaymentInput = {
+  orgId: string;
+  amount: number;
+  category: Category;
+  purpose: string;
+  eventId?: string;
+};
+
+/** Why a card payment can't go through, or undefined if it can. */
+export function cardPaymentProblem(s: AppState, orgId: string, amount: number) {
+  const now = Date.now();
+  const card = activeCard(s, orgId, ME, now);
+  const settings = s.cardSettings[orgId];
+  if (!card || !settings) return "You don't have an active card for this org.";
+  if (settings.frozen) return 'Cards for this org are frozen.';
+  const left = settings.monthlyLimit - cardSpendThisMonth(s, orgId, now);
+  if (amount > left) return `That's over the ${formatMoney(left)} left on this month's card limit.`;
+  if (amount > available(s, orgId)) return `That's more than the ${formatMoney(available(s, orgId))} available.`;
+  return undefined;
+}
+
+/** Tap to pay at an outside store. The purpose is recorded before the charge. */
+export function payWithCard(input: PaymentInput & { merchant: string }) {
+  const id = newId('t');
+  update((s) => {
+    const card = activeCard(s, input.orgId, ME, Date.now());
+    if (!card || input.amount <= 0 || cardPaymentProblem(s, input.orgId, input.amount)) return s;
+    const transaction: Transaction = {
+      id,
+      orgId: input.orgId,
+      direction: 'out',
+      amount: input.amount,
+      description: input.purpose,
+      category: input.category,
+      method: 'card',
+      cardId: card.id,
+      merchant: input.merchant,
+      eventId: input.eventId,
+      byId: ME,
+      at: Date.now(),
+    };
+    const text = `${nameOf(s, ME)} paid ${formatMoney(input.amount)} at ${input.merchant} for ${input.purpose}`;
+    return log({ ...s, transactions: [...s.transactions, transaction] }, input.orgId, text);
+  });
+  return id;
+}
+
+/** Pay a campus department. Moved between university accounts, no card involved. */
+export function payUniversity(input: PaymentInput & { departmentId: string }) {
+  const id = newId('t');
+  update((s) => {
+    const org = s.orgs.find((candidate) => candidate.id === input.orgId);
+    const department = findDepartment(input.departmentId);
+    if (!org || !department || !isOfficer(org) || input.amount <= 0) return s;
+    if (input.amount > available(s, org.id)) return s;
+    const transaction: Transaction = {
+      id,
+      orgId: org.id,
+      direction: 'out',
+      amount: input.amount,
+      description: input.purpose,
+      category: input.category,
+      method: 'transfer',
+      departmentId: department.id,
+      eventId: input.eventId,
+      byId: ME,
+      at: Date.now(),
+    };
+    const text = `${nameOf(s, ME)} sent ${formatMoney(input.amount)} to ${department.name} for ${input.purpose}`;
+    return log({ ...s, transactions: [...s.transactions, transaction] }, org.id, text);
+  });
+  return id;
 }
 
 export function issueCard(orgId: string, holderId: string) {
