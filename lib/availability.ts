@@ -5,8 +5,8 @@ export const FIRST_HOUR = 8;
 /** Last start hour, so the last slot is 10–11pm. */
 export const LAST_HOUR = 22;
 export const HOURS = Array.from({ length: LAST_HOUR - FIRST_HOUR + 1 }, (_, i) => FIRST_HOUR + i);
-/** Grid columns, Monday first. Values are JS weekdays. */
-export const WEEKDAYS = [1, 2, 3, 4, 5, 6, 0];
+/** Grid columns, Sunday first. Values are JS weekdays. */
+export const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
 export const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export const slotKey = (weekday: number, hour: number) => weekday * 24 + hour;

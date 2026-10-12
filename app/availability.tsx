@@ -96,7 +96,12 @@ export default function AvailabilityScreen() {
     painting?.has(slot) ? paintValue : weekly.has(slot);
 
   const applyPreset = (slots: number[]) => setWeeklyAvailability([...weekly, ...slots]);
-  const days = Array.from({ length: AWAY_DAYS }, (_, i) => startOfDay(now, i));
+  const today = startOfDay(now);
+  const pastThisWeek = new Date(today).getDay();
+  const days = Array.from(
+    { length: Math.ceil((pastThisWeek + AWAY_DAYS) / 7) * 7 },
+    (_, i) => startOfDay(now, i - pastThisWeek),
+  );
 
   return (
     <>
@@ -167,11 +172,13 @@ export default function AvailabilityScreen() {
           {days.map((day) => {
             const away = saved.away.includes(day);
             const date = new Date(day);
+            const past = day < today;
             return (
               <Pressable
                 key={day}
+                disabled={past}
                 onPress={() => toggleAwayDay(day)}
-                style={[styles.awayDay, away && styles.awayDayOn]}>
+                style={[styles.awayDay, away && styles.awayDayOn, past && styles.awayDayPast]}>
                 <Text style={[styles.awayWeek, away && styles.awayText]}>
                   {WEEKDAY_LABELS[date.getDay()]}
                 </Text>
@@ -275,6 +282,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  awayDayPast: {
+    opacity: 0.35,
   },
   awayDayOn: {
     backgroundColor: colors.text,
