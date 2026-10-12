@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { EditableDetail } from '@/components/EditableDetail';
 import { Avatar, Button, EmptyState, OrgBadge, Pill, SectionLabel } from '@/components/ui';
 import { colors, radius } from '@/constants/theme';
 import { useNow } from '@/hooks/useNow';
@@ -16,10 +17,18 @@ import {
   formatTime,
 } from '@/lib/format';
 import { orderStatusLabel } from '@/lib/orders';
-import { requestStatus } from '@/lib/orgRules';
+import { isOfficer, requestStatus } from '@/lib/orgRules';
 import { findPartner } from '@/lib/partners';
 import { isMember, isPollOpen, leadingOption, voteCount } from '@/lib/selectors';
-import { closePoll, joinOrg, ME, toggleVote, useAppState, voteWhereFree } from '@/lib/store';
+import {
+  closePoll,
+  joinOrg,
+  ME,
+  toggleVote,
+  updateEventDetails,
+  useAppState,
+  voteWhereFree,
+} from '@/lib/store';
 
 export default function EventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -54,6 +63,7 @@ export default function EventScreen() {
   const options = [...event.options].sort((a, b) => a.startsAt - b.startsAt);
   const creator = state.users[event.creatorId];
   const isCreator = event.creatorId === ME;
+  const canEdit = isCreator || isOfficer(org);
   const orders = state.requests.filter((request) => request.eventId === event.id);
 
   const myWeek = state.availability[ME];
@@ -115,24 +125,31 @@ export default function EventScreen() {
           Started by {event.creatorId === ME ? 'you' : (creator?.name ?? 'someone')}
         </Text>
 
-        {!!event.speaker && (
-          <>
-            <SectionLabel>Speaker</SectionLabel>
-            <View style={styles.detailCard}>
-              <Avatar name={event.speaker} size={40} />
-              <Text style={styles.speaker}>{event.speaker}</Text>
-            </View>
-          </>
-        )}
+        <EditableDetail
+          label="Speaker"
+          value={event.speaker}
+          canEdit={canEdit}
+          placeholder="Name and a line about them"
+          addLabel="Add a speaker"
+          onSave={(speaker) => updateEventDetails(event.id, { speaker })}>
+          <View style={styles.detailCard}>
+            <Avatar name={event.speaker ?? ''} size={40} />
+            <Text style={styles.speaker}>{event.speaker}</Text>
+          </View>
+        </EditableDetail>
 
-        {!!event.description && (
-          <>
-            <SectionLabel>Description & agenda</SectionLabel>
-            <View style={styles.detailCard}>
-              <Text style={styles.description}>{event.description}</Text>
-            </View>
-          </>
-        )}
+        <EditableDetail
+          label="Description & agenda"
+          value={event.description}
+          canEdit={canEdit}
+          placeholder={'What it is, plus the agenda\ne.g. 6:00 Doors open\n6:15 Pitches\n7:30 Networking'}
+          addLabel="Add a description or agenda"
+          multiline
+          onSave={(description) => updateEventDetails(event.id, { description: description ?? '' })}>
+          <View style={styles.detailCard}>
+            <Text style={styles.description}>{event.description}</Text>
+          </View>
+        </EditableDetail>
 
         {open ? (
           <View style={[styles.banner, styles.bannerOpen]}>

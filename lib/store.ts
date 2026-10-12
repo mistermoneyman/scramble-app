@@ -187,6 +187,24 @@ export function closePoll(eventId: string) {
   }));
 }
 
+export function updateEventDetails(
+  eventId: string,
+  details: { speaker?: string; description?: string },
+) {
+  update((s) => {
+    const event = s.events.find((candidate) => candidate.id === eventId);
+    if (!event) return s;
+    const next = {
+      ...s,
+      events: s.events.map((candidate) =>
+        candidate.id === eventId ? { ...candidate, ...details } : candidate,
+      ),
+    };
+    const what = 'speaker' in details ? 'the speaker' : 'the description';
+    return log(next, event.orgId, `${nameOf(s, ME)} updated ${what} for ${event.title}`);
+  });
+}
+
 const nameOf = (s: AppState, userId: string) => s.users[userId]?.name ?? 'Someone';
 
 function log(s: AppState, orgId: string, text: string): AppState {
