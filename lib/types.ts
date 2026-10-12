@@ -68,6 +68,7 @@ export type Transaction = {
   method: 'deposit' | 'request' | 'card';
   vendorId?: string;
   requestId?: string;
+  cardId?: string;
   at: number;
 };
 
@@ -99,10 +100,23 @@ export type FundRequest = {
   paidAt?: number;
 };
 
-export type OrgCard = {
-  last4: string;
+/** Applies to every officer card in the org. */
+export type CardSettings = {
   monthlyLimit: number;
   frozen: boolean;
+};
+
+/** A virtual card issued to one officer's phone wallet. */
+export type OfficerCard = {
+  id: string;
+  orgId: string;
+  holderId: string;
+  last4: string;
+  issuedAt: number;
+  expiresAt: number;
+  inWallet: boolean;
+  deactivatedAt?: number;
+  deactivatedReason?: string;
 };
 
 export type Activity = {
@@ -126,7 +140,8 @@ export type AppState = {
   events: OrgEvent[];
   transactions: Transaction[];
   requests: FundRequest[];
-  cards: Record<string, OrgCard>;
+  cardSettings: Record<string, CardSettings>;
+  cards: OfficerCard[];
   activity: Activity[];
   /** `${orgId}:${academicYearStart}` -> submission. */
   audits: Record<string, AuditSubmission>;

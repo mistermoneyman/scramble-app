@@ -152,7 +152,7 @@ export default function RosterScreen() {
                         if (role === 'president') {
                           confirm(
                             `Hand the presidency to ${user.name}?`,
-                            "You'll become a general member, and they'll manage the roster from now on.",
+                            "You'll become a general member, and they'll manage the roster from now on. Your org card turns off and they get a new one.",
                             'Hand off',
                             apply,
                           );
@@ -218,7 +218,7 @@ function OfficerControls({
           onPress={() =>
             confirm(
               `Hand ${ROLE_LABELS[role]} to ${successor.name}?`,
-              `${successor.name} gets ${officer.id === ME ? 'your' : `${firstName(officer.name)}'s`} permissions right away, including signing for money. ${officer.id === ME ? 'You stay' : `${firstName(officer.name)} stays`} in the org as a member.`,
+              `${successor.name} gets ${officer.id === ME ? 'your' : `${firstName(officer.name)}'s`} permissions right away, including signing for money. ${officer.id === ME ? 'Your' : `${firstName(officer.name)}'s`} org card turns off and ${firstName(successor.name)} gets a new one. ${officer.id === ME ? 'You stay' : `${firstName(officer.name)} stays`} in the org as a member.`,
               'Hand off',
               () => handOff(org.id, officer.id),
             )

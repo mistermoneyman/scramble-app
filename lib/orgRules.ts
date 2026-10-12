@@ -1,6 +1,6 @@
 import { academicYearEnd, academicYearStart, graduatingClass } from './academicYear';
 import { ME } from './seed';
-import type { AppState, FundRequest, Org, OfficerRole, Transaction } from './types';
+import type { AppState, FundRequest, OfficerCard, Org, OfficerRole, Transaction } from './types';
 
 export const ROLE_LABELS: Record<OfficerRole, string> = {
   president: 'President',
@@ -93,13 +93,50 @@ export function available(state: AppState, orgId: string) {
   return balance(state, orgId) - pendingTotal(state, orgId);
 }
 
-export function cardSpendThisMonth(state: AppState, orgId: string, now: number) {
+function monthStart(now: number) {
   const start = new Date(now);
   start.setDate(1);
   start.setHours(0, 0, 0, 0);
+  return start.getTime();
+}
+
+export function cardSpendThisMonth(state: AppState, orgId: string, now: number, cardId?: string) {
+  const start = monthStart(now);
   return orgTransactions(state, orgId)
-    .filter((t) => t.method === 'card' && t.direction === 'out' && t.at >= start.getTime())
+    .filter(
+      (t) =>
+        t.method === 'card' &&
+        t.direction === 'out' &&
+        t.at >= start &&
+        (cardId === undefined || t.cardId === cardId),
+    )
     .reduce((total, t) => total + t.amount, 0);
+}
+
+export type CardStatus = 'active' | 'expired' | 'deactivated';
+
+export function cardStatus(card: OfficerCard, now: number): CardStatus {
+  if (card.deactivatedAt !== undefined) return 'deactivated';
+  if (now >= card.expiresAt) return 'expired';
+  return 'active';
+}
+
+/** Active cards first, then most recently issued. */
+export function orgCards(state: AppState, orgId: string, now: number) {
+  return state.cards
+    .filter((card) => card.orgId === orgId)
+    .sort((a, b) => {
+      const aActive = cardStatus(a, now) === 'active' ? 0 : 1;
+      const bActive = cardStatus(b, now) === 'active' ? 0 : 1;
+      return aActive - bActive || b.issuedAt - a.issuedAt;
+    });
+}
+
+export function activeCard(state: AppState, orgId: string, holderId: string, now: number) {
+  return state.cards.find(
+    (card) =>
+      card.orgId === orgId && card.holderId === holderId && cardStatus(card, now) === 'active',
+  );
 }
 
 export function awaitingMySignature(state: AppState) {

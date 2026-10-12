@@ -9,6 +9,11 @@ export function academicYearEnd(start: number) {
   return new Date(new Date(start).getFullYear() + 1, 7, 1).getTime();
 }
 
+/** Officer terms end with the academic year, on July 31. */
+export function termEnd(now: number) {
+  return academicYearEnd(academicYearStart(now)) - 1;
+}
+
 export function academicYearLabel(start: number) {
   const year = new Date(start).getFullYear();
   return `${year}–${String(year + 1).slice(2)}`;

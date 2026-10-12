@@ -2,15 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { Button, Card, Chip, EmptyState, Pill, SectionLabel } from '@/components/ui';
-import { colors, radius } from '@/constants/theme';
+import { OfficerCards } from '@/components/OfficerCards';
+import { Button, Card, EmptyState, Pill, SectionLabel } from '@/components/ui';
+import { colors } from '@/constants/theme';
 import { useNow } from '@/hooks/useNow';
-import { formatDate, formatMoney } from '@/lib/format';
+import { firstName, formatDate, formatMoney } from '@/lib/format';
 import {
   available,
   balance,
-  canManageCard,
-  cardSpendThisMonth,
   isOfficer,
   missingSigners,
   officerIds,
@@ -20,10 +19,8 @@ import {
 } from '@/lib/orgRules';
 import { findPartner } from '@/lib/partners';
 import { isMember } from '@/lib/selectors';
-import { ME, setCardLimit, toggleCardFrozen, useAppState } from '@/lib/store';
+import { ME, useAppState } from '@/lib/store';
 import type { FundRequest, Org } from '@/lib/types';
-
-const LIMITS = [10000, 25000, 50000, 100000];
 
 export default function MoneyScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -41,9 +38,12 @@ export default function MoneyScreen() {
   const requests = orgRequests(state, org.id);
   const pending = requests.filter((request) => requestStatus(request) === 'pending');
   const declined = requests.filter((request) => requestStatus(request) === 'rejected');
-  const card = state.cards[org.id];
-  const cardSpend = cardSpendThisMonth(state, org.id, now);
   const transactions = orgTransactions(state, org.id);
+  const cardLabel = (cardId?: string) => {
+    const card = state.cards.find((candidate) => candidate.id === cardId);
+    if (!card) return 'Card';
+    return `${firstName(state.users[card.holderId]?.name ?? '')}'s card •••• ${card.last4}`;
+  };
 
   const openNew = (mode: 'partner' | 'expense') =>
     router.push({ pathname: '/org/[id]/request/new', params: { id: org.id, mode } });
@@ -100,54 +100,7 @@ export default function MoneyScreen() {
           </>
         )}
 
-        {card && (
-          <>
-            <SectionLabel>Org card</SectionLabel>
-            <View style={[styles.card, card.frozen && styles.cardFrozen]}>
-              <View style={styles.cardTop}>
-                <Text style={styles.cardOrg}>{org.name}</Text>
-                {card.frozen && <Pill label="Frozen" tone="neutral" />}
-              </View>
-              <Text style={styles.cardNumber}>•••• •••• •••• {card.last4}</Text>
-              <Text style={styles.cardMeta}>
-                {formatMoney(cardSpend)} of {formatMoney(card.monthlyLimit)} spent this month
-              </Text>
-              <View style={styles.cardTrack}>
-                <View
-                  style={[
-                    styles.cardFill,
-                    { width: `${Math.min(100, (cardSpend / card.monthlyLimit) * 100)}%` },
-                  ]}
-                />
-              </View>
-            </View>
-            {canManageCard(org) ? (
-              <View style={styles.cardControls}>
-                <Text style={styles.controlLabel}>Monthly limit</Text>
-                <View style={styles.chips}>
-                  {LIMITS.map((limit) => (
-                    <Chip
-                      key={limit}
-                      label={formatMoney(limit).replace('.00', '')}
-                      selected={card.monthlyLimit === limit}
-                      onPress={() => setCardLimit(org.id, limit)}
-                    />
-                  ))}
-                </View>
-                <Button
-                  label={card.frozen ? 'Unfreeze card' : 'Freeze card'}
-                  icon={card.frozen ? 'play-outline' : 'snow-outline'}
-                  variant="secondary"
-                  onPress={() => toggleCardFrozen(org.id)}
-                />
-              </View>
-            ) : (
-              <Text style={[styles.muted, styles.note]}>
-                The president and treasurer set the card limit.
-              </Text>
-            )}
-          </>
-        )}
+        <OfficerCards state={state} org={org} now={now} />
 
         <SectionLabel>Transactions</SectionLabel>
         {transactions.map((transaction) => {
@@ -172,7 +125,7 @@ export default function MoneyScreen() {
                 </Text>
                 <Text style={styles.muted}>
                   {transaction.category} · {formatDate(transaction.at)}
-                  {transaction.method === 'card' ? ' · Card' : ''}
+                  {transaction.method === 'card' ? ` · ${cardLabel(transaction.cardId)}` : ''}
                   {transaction.method === 'request' ? ' · Officer approved' : ''}
                 </Text>
               </View>
@@ -286,58 +239,6 @@ const styles = StyleSheet.create({
   },
   requestEmoji: {
     fontSize: 26,
-  },
-  card: {
-    padding: 20,
-    gap: 10,
-    borderRadius: radius.lg,
-    backgroundColor: colors.text,
-  },
-  cardFrozen: {
-    opacity: 0.55,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  cardOrg: {
-    color: colors.accent,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  cardNumber: {
-    color: '#fff',
-    fontSize: 18,
-    letterSpacing: 2,
-    fontWeight: '600',
-  },
-  cardMeta: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 13,
-  },
-  cardTrack: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    overflow: 'hidden',
-  },
-  cardFill: {
-    height: '100%',
-    backgroundColor: colors.accent,
-  },
-  cardControls: {
-    gap: 10,
-    marginTop: 12,
-  },
-  controlLabel: {
-    color: colors.text,
-    fontWeight: '700',
-  },
-  chips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
   },
   tx: {
     flexDirection: 'row',

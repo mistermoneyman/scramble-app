@@ -1,9 +1,10 @@
-import { graduatingClass } from './academicYear';
+import { graduatingClass, termEnd } from './academicYear';
 import type {
   Activity,
   AppState,
   FundRequest,
   Message,
+  OfficerCard,
   Org,
   OrgEvent,
   ThreadId,
@@ -246,22 +247,22 @@ export function createSeed(now: number): AppState {
     tx('startup', 'in', 1500, 'Fall allocation', 'University allocation', 55),
     tx('startup', 'in', 400, 'Fall dues (20 members)', 'Member dues', 40),
     tx('startup', 'in', 500, 'First Campus Credit Union', 'Sponsorship', 20),
-    tx('startup', 'out', 119.99, 'Canva Pro (annual)', 'Marketing', 35),
+    tx('startup', 'out', 119.99, 'Canva Pro (annual)', 'Marketing', 35, { cardId: 'seed_c_maya' }),
     tx('startup', 'out', 96, 'Pizza for kickoff GBM', 'Food', 28, viaRequest('seed_r_kickoff', 'slice')),
     tx('startup', 'out', 32, 'Coffee for founder panel', 'Food', 14, viaRequest('seed_r_coffee', 'coffee')),
-    tx('startup', 'out', 85, 'Club stickers', 'Marketing', 10),
+    tx('startup', 'out', 85, 'Club stickers', 'Marketing', 10, { cardId: 'seed_c_me_startup' }),
     tx('photo', 'in', 800, 'Fall allocation', 'University allocation', 50),
     tx('photo', 'in', 240, 'Fall dues (12 members)', 'Member dues', 38),
-    tx('photo', 'out', 142, 'Darkroom paper', 'Supplies', 30),
+    tx('photo', 'out', 142, 'Darkroom paper', 'Supplies', 30, { cardId: 'seed_c_me_photo' }),
     tx('photo', 'out', 36, 'Cookies for critique night', 'Food', 12, viaRequest('seed_r_cookies', 'bakery')),
     tx('soccer', 'in', 600, 'Fall allocation', 'University allocation', 52),
     tx('soccer', 'out', 420, 'Team jerseys', 'Supplies', 33, viaRequest('seed_r_jerseys')),
     tx('debate', 'in', 700, 'Fall allocation', 'University allocation', 52),
-    tx('debate', 'out', 180, 'Tournament registration', 'Travel', 21),
+    tx('debate', 'out', 180, 'Tournament registration', 'Travel', 21, { cardId: 'seed_c_priya' }),
     tx('climb', 'in', 500, 'Fall allocation', 'University allocation', 52),
-    tx('climb', 'out', 220, 'Gym day passes', 'Events', 16),
+    tx('climb', 'out', 220, 'Gym day passes', 'Events', 16, { cardId: 'seed_c_tyler_climb' }),
     tx('film', 'in', 650, 'Fall allocation', 'University allocation', 52),
-    tx('film', 'out', 48, 'Popcorn and snacks', 'Food', 9),
+    tx('film', 'out', 48, 'Popcorn and snacks', 'Food', 9, { cardId: 'seed_c_elena' }),
   ];
 
   const signed = (userIds: string[], daysAgo: number) =>
@@ -356,6 +357,23 @@ export function createSeed(now: number): AppState {
     },
   ];
 
+  const card = (
+    id: string,
+    orgId: string,
+    holderId: string,
+    last4: string,
+    issuedDaysAgo: number,
+    inWallet: boolean,
+  ): OfficerCard => ({
+    id,
+    orgId,
+    holderId,
+    last4,
+    issuedAt: now - issuedDaysAgo * DAY,
+    expiresAt: termEnd(now),
+    inWallet,
+  });
+
   let activityCount = 0;
   const activity = (orgId: string, actorId: string, text: string, ago: number): Activity => ({
     id: `seed_a${activityCount++}`,
@@ -373,15 +391,32 @@ export function createSeed(now: number): AppState {
     events,
     transactions,
     requests,
-    cards: {
-      startup: { last4: '4821', monthlyLimit: 50000, frozen: false },
-      photo: { last4: '1937', monthlyLimit: 25000, frozen: false },
-      soccer: { last4: '5502', monthlyLimit: 25000, frozen: false },
-      debate: { last4: '7710', monthlyLimit: 25000, frozen: false },
-      climb: { last4: '3348', monthlyLimit: 10000, frozen: false },
-      film: { last4: '9024', monthlyLimit: 10000, frozen: false },
+    cardSettings: {
+      startup: { monthlyLimit: 50000, frozen: false },
+      photo: { monthlyLimit: 25000, frozen: false },
+      soccer: { monthlyLimit: 25000, frozen: false },
+      debate: { monthlyLimit: 25000, frozen: false },
+      climb: { monthlyLimit: 10000, frozen: false },
+      film: { monthlyLimit: 10000, frozen: false },
     },
+    cards: [
+      card('seed_c_me_startup', 'startup', ME, '4821', 60, true),
+      card('seed_c_maya', 'startup', 'u_maya', '7316', 70, true),
+      {
+        ...card('seed_c_marcus_startup', 'startup', 'u_marcus', '0558', 300, false),
+        expiresAt: termEnd(now - 365 * DAY),
+        deactivatedAt: now - 60 * DAY,
+        deactivatedReason: 'Marcus Johnson stopped being Treasurer',
+      },
+      card('seed_c_me_photo', 'photo', ME, '1937', 70, true),
+      card('seed_c_nina', 'photo', 'u_nina', '6604', 70, true),
+      card('seed_c_marcus', 'soccer', 'u_marcus', '5502', 50, true),
+      card('seed_c_priya', 'debate', 'u_priya', '7710', 50, true),
+      card('seed_c_tyler_climb', 'climb', 'u_tyler', '3348', 50, true),
+      card('seed_c_elena', 'film', 'u_elena', '9024', 50, false),
+    ],
     activity: [
+      activity('startup', 'u_maya', 'Card •••• 0558 turned off: Marcus Johnson stopped being Treasurer', 60 * DAY),
       activity('startup', 'u_maya', 'Maya Chen made Avery Lewis treasurer', 60 * DAY),
       activity('startup', 'u_maya', 'Maya Chen made Priya Patel vice president', 60 * DAY),
       activity('startup', 'u_maya', 'Maya Chen requested $200.00 for Pizza for Pitch Night', 5 * HOUR),

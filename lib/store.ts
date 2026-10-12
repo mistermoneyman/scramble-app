@@ -1,12 +1,14 @@
 import { useSyncExternalStore } from 'react';
 
-import { academicYearStart } from './academicYear';
-import { formatMoney } from './format';
+import { academicYearStart, termEnd } from './academicYear';
+import { formatLongDate, formatMoney } from './format';
 import {
+  activeCard,
   auditKey,
   available,
   canManageCard,
   canManageRoster,
+  cardStatus,
   isOfficer,
   missingSigners,
   officerIds,
@@ -20,6 +22,7 @@ import type {
   Category,
   EventOption,
   LineItem,
+  OfficerCard,
   OfficerRole,
   Org,
   OrgEvent,
@@ -210,7 +213,8 @@ export function assignRole(orgId: string, userId: string, role: OfficerRole | nu
           : `${nameOf(s, ME)} made ${nameOf(s, userId)} ${ROLE_LABELS[role]}`;
     }
 
-    return settle(log(updateOrg(s, { ...org, officers, successors }), orgId, text), orgId);
+    const next = log(updateOrg(s, { ...org, officers, successors }), orgId, text);
+    return settle(syncCards(next, orgId, org.officers), orgId);
   });
 }
 
@@ -246,7 +250,8 @@ export function handOff(orgId: string, officerId: string) {
     officers[successorId] = role;
 
     const text = `${nameOf(s, officerId)} handed ${ROLE_LABELS[role]} to ${nameOf(s, successorId)}`;
-    return settle(log(updateOrg(s, { ...org, officers, successors }), orgId, text), orgId);
+    const next = log(updateOrg(s, { ...org, officers, successors }), orgId, text);
+    return settle(syncCards(next, orgId, org.officers), orgId);
   });
 }
 
@@ -314,9 +319,12 @@ export function rejectRequest(requestId: string) {
 export function setCardLimit(orgId: string, monthlyLimit: number) {
   update((s) => {
     const org = s.orgs.find((candidate) => candidate.id === orgId);
-    const card = s.cards[orgId];
-    if (!org || !card || !canManageCard(org)) return s;
-    const next = { ...s, cards: { ...s.cards, [orgId]: { ...card, monthlyLimit } } };
+    const settings = s.cardSettings[orgId];
+    if (!org || !settings || !canManageCard(org)) return s;
+    const next = {
+      ...s,
+      cardSettings: { ...s.cardSettings, [orgId]: { ...settings, monthlyLimit } },
+    };
     return log(next, orgId, `${nameOf(s, ME)} set the card limit to ${formatMoney(monthlyLimit)}/month`);
   });
 }
@@ -324,11 +332,89 @@ export function setCardLimit(orgId: string, monthlyLimit: number) {
 export function toggleCardFrozen(orgId: string) {
   update((s) => {
     const org = s.orgs.find((candidate) => candidate.id === orgId);
-    const card = s.cards[orgId];
-    if (!org || !card || !canManageCard(org)) return s;
-    const frozen = !card.frozen;
-    const next = { ...s, cards: { ...s.cards, [orgId]: { ...card, frozen } } };
-    return log(next, orgId, `${nameOf(s, ME)} ${frozen ? 'froze' : 'unfroze'} the org card`);
+    const settings = s.cardSettings[orgId];
+    if (!org || !settings || !canManageCard(org)) return s;
+    const frozen = !settings.frozen;
+    const next = { ...s, cardSettings: { ...s.cardSettings, [orgId]: { ...settings, frozen } } };
+    return log(next, orgId, `${nameOf(s, ME)} ${frozen ? 'froze' : 'unfroze'} all officer cards`);
+  });
+}
+
+function withCard(s: AppState, orgId: string, holderId: string): AppState {
+  const now = Date.now();
+  if (activeCard(s, orgId, holderId, now)) return s;
+  const card: OfficerCard = {
+    id: newId('c'),
+    orgId,
+    holderId,
+    last4: String(Math.floor(Math.random() * 10000)).padStart(4, '0'),
+    issuedAt: now,
+    expiresAt: termEnd(now),
+    inWallet: false,
+  };
+  const text = `Card •••• ${card.last4} issued to ${nameOf(s, holderId)}, expires ${formatLongDate(card.expiresAt)}`;
+  return log({ ...s, cards: [...s.cards, card] }, orgId, text);
+}
+
+function withoutCard(s: AppState, cardId: string, reason: string): AppState {
+  const card = s.cards.find((candidate) => candidate.id === cardId);
+  if (!card || cardStatus(card, Date.now()) !== 'active') return s;
+  const next = {
+    ...s,
+    cards: s.cards.map((c) =>
+      c.id === cardId ? { ...c, deactivatedAt: Date.now(), deactivatedReason: reason } : c,
+    ),
+  };
+  return log(next, card.orgId, `Card •••• ${card.last4} turned off: ${reason}`);
+}
+
+/**
+ * Turns off cards held by anyone who just stopped being an officer, and gives a
+ * fresh card to whoever took over their role.
+ */
+function syncCards(s: AppState, orgId: string, before: Org['officers']): AppState {
+  const org = s.orgs.find((candidate) => candidate.id === orgId);
+  if (!org) return s;
+  let next = s;
+  for (const card of s.cards) {
+    if (card.orgId !== orgId || cardStatus(card, Date.now()) !== 'active') continue;
+    if (org.officers[card.holderId]) continue;
+    const role = before[card.holderId];
+    next = withoutCard(
+      next,
+      card.id,
+      `${nameOf(s, card.holderId)} stopped being ${role ? ROLE_LABELS[role] : 'an officer'}`,
+    );
+    const replacement = Object.keys(org.officers).find(
+      (userId) => org.officers[userId] === role && before[userId] !== role,
+    );
+    if (replacement) next = withCard(next, orgId, replacement);
+  }
+  return next;
+}
+
+export function issueCard(orgId: string, holderId: string) {
+  update((s) => {
+    const org = s.orgs.find((candidate) => candidate.id === orgId);
+    if (!org || !canManageCard(org) || !isOfficer(org, holderId)) return s;
+    return withCard(s, orgId, holderId);
+  });
+}
+
+export function deactivateCard(cardId: string) {
+  update((s) => {
+    const card = s.cards.find((candidate) => candidate.id === cardId);
+    const org = card && s.orgs.find((candidate) => candidate.id === card.orgId);
+    if (!card || !org || !(canManageCard(org) || card.holderId === ME)) return s;
+    return withoutCard(s, cardId, `turned off by ${nameOf(s, ME)}`);
+  });
+}
+
+export function addCardToWallet(cardId: string) {
+  update((s) => {
+    const card = s.cards.find((candidate) => candidate.id === cardId);
+    if (!card || card.holderId !== ME || card.inWallet) return s;
+    return { ...s, cards: s.cards.map((c) => (c.id === cardId ? { ...c, inWallet: true } : c)) };
   });
 }
 
