@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 import { academicYearStart, termEnd } from './academicYear';
+import { fitAt } from './availability';
 import { formatLongDate, formatMoney } from './format';
 import {
   activeCard,
@@ -96,7 +97,10 @@ export function createEvent(input: {
   description: string;
   startTimes: number[];
   pollClosesAt: number;
+  /** Skip the vote and confirm the only option right away. */
+  lockIn?: boolean;
 }) {
+  const createdAt = Date.now();
   const options: EventOption[] = [...input.startTimes]
     .sort((a, b) => a - b)
     .map((startsAt) => ({ id: newId('o'), startsAt }));
@@ -106,10 +110,11 @@ export function createEvent(input: {
     title: input.title,
     description: input.description,
     creatorId: ME,
-    createdAt: Date.now(),
+    createdAt,
     options,
     votes: Object.fromEntries(options.map((option) => [option.id, []])),
-    pollClosesAt: input.pollClosesAt,
+    pollClosesAt: input.lockIn ? createdAt : input.pollClosesAt,
+    closedAt: input.lockIn ? createdAt : undefined,
   };
   update((s) => ({ ...s, events: [...s.events, event] }));
   return event.id;
@@ -125,6 +130,44 @@ export function toggleVote(eventId: string, optionId: string) {
       return { ...event, votes: { ...event.votes, [optionId]: next } };
     }),
   }));
+}
+
+/** Votes for every open option that fits the current user's usual week. */
+export function voteWhereFree(eventId: string) {
+  update((s) => ({
+    ...s,
+    events: s.events.map((event) => {
+      if (event.id !== eventId) return event;
+      const votes = { ...event.votes };
+      for (const option of event.options) {
+        const voters = votes[option.id] ?? [];
+        if (fitAt(s.availability[ME], option.startsAt) === 'free' && !voters.includes(ME)) {
+          votes[option.id] = [...voters, ME];
+        }
+      }
+      return { ...event, votes };
+    }),
+  }));
+}
+
+export function setWeeklyAvailability(weekly: number[]) {
+  update((s) => ({
+    ...s,
+    availability: {
+      ...s.availability,
+      [ME]: { away: s.availability[ME]?.away ?? [], weekly: [...new Set(weekly)].sort((a, b) => a - b) },
+    },
+  }));
+}
+
+export function toggleAwayDay(day: number) {
+  update((s) => {
+    const current = s.availability[ME] ?? { weekly: [], away: [] };
+    const away = current.away.includes(day)
+      ? current.away.filter((value) => value !== day)
+      : [...current.away, day].sort((a, b) => a - b);
+    return { ...s, availability: { ...s.availability, [ME]: { ...current, away } } };
+  });
 }
 
 export function closePoll(eventId: string) {

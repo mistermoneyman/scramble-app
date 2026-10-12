@@ -71,7 +71,7 @@ export default function NewRequestScreen() {
   const otherOfficers = officerIds(org).filter((userId) => userId !== ME).length;
   const events = state.events
     .filter((event) => event.orgId === org.id)
-    .filter((event) => isPollOpen(event, now) || leadingOption(event).startsAt >= now);
+    .filter((event) => isPollOpen(event, now) || leadingOption(state, event).startsAt >= now);
 
   const problem =
     mode === 'partner' && items.length === 0
@@ -222,7 +222,7 @@ export default function NewRequestScreen() {
                   label={
                     isPollOpen(event, now)
                       ? `${event.title} (date TBD)`
-                      : `${event.title} · ${formatDay(leadingOption(event).startsAt)}`
+                      : `${event.title} · ${formatDay(leadingOption(state, event).startsAt)}`
                   }
                   selected={eventId === event.id}
                   onPress={() => setEventId(eventId === event.id ? undefined : event.id)}

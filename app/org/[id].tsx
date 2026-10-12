@@ -49,7 +49,7 @@ export default function OrgScreen() {
 
   const upcoming = state.events.filter(
     (event) =>
-      event.orgId === org.id && (isPollOpen(event, now) || leadingOption(event).startsAt >= now),
+      event.orgId === org.id && (isPollOpen(event, now) || leadingOption(state, event).startsAt >= now),
   ).length;
 
   return (

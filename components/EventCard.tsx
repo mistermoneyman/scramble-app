@@ -5,6 +5,7 @@ import { OrgBadge } from '@/components/ui';
 import { colors, radius } from '@/constants/theme';
 import { formatCountdown, formatDateTime, formatDay } from '@/lib/format';
 import { hasVoted, isMember, isPollOpen, leadingOption } from '@/lib/selectors';
+import { useAppState } from '@/lib/store';
 import type { Org, OrgEvent } from '@/lib/types';
 
 type Props = {
@@ -15,8 +16,9 @@ type Props = {
 };
 
 export function EventCard({ event, org, now, onPress }: Props) {
+  const state = useAppState();
   const open = isPollOpen(event, now);
-  const start = leadingOption(event).startsAt;
+  const start = leadingOption(state, event).startsAt;
 
   return (
     <Pressable style={({ pressed }) => [styles.card, pressed && styles.pressed]} onPress={onPress}>

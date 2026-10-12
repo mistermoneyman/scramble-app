@@ -56,6 +56,13 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar-outline" color={color} size={size} />
           ),
+          headerRight: () => (
+            <HeaderButton
+              icon="time-outline"
+              label="My availability"
+              onPress={() => router.push('/availability')}
+            />
+          ),
         }}
       />
     </Tabs>

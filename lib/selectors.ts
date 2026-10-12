@@ -1,3 +1,4 @@
+import { freeMembers } from './availability';
 import { ME } from './seed';
 import type { AppState, EventOption, Message, Org, OrgEvent, ThreadId, User } from './types';
 
@@ -84,10 +85,18 @@ export function voteCount(event: OrgEvent, optionId: string) {
   return event.votes[optionId]?.length ?? 0;
 }
 
-/** Most votes wins; ties go to the earliest date. */
-export function leadingOption(event: OrgEvent): EventOption {
+/**
+ * Most votes wins. Ties go to the time when more members are usually free,
+ * then to the earliest date.
+ */
+export function leadingOption(state: AppState, event: OrgEvent): EventOption {
+  const org = state.orgs.find((candidate) => candidate.id === event.orgId);
+  const free = (option: EventOption) => (org ? freeMembers(state, org, option.startsAt).length : 0);
   return [...event.options].sort(
-    (a, b) => voteCount(event, b.id) - voteCount(event, a.id) || a.startsAt - b.startsAt,
+    (a, b) =>
+      voteCount(event, b.id) - voteCount(event, a.id) ||
+      free(b) - free(a) ||
+      a.startsAt - b.startsAt,
   )[0];
 }
 
@@ -97,12 +106,12 @@ export function hasVoted(event: OrgEvent) {
 
 const RECENTLY_STARTED = 3 * 60 * 60 * 1000;
 
-export function groupEvents(events: OrgEvent[], now: number) {
+export function groupEvents(state: AppState, events: OrgEvent[], now: number) {
   const voting = events
     .filter((event) => isPollOpen(event, now))
     .sort((a, b) => a.pollClosesAt - b.pollClosesAt);
   const decided = events.filter((event) => !isPollOpen(event, now));
-  const startOf = (event: OrgEvent) => leadingOption(event).startsAt;
+  const startOf = (event: OrgEvent) => leadingOption(state, event).startsAt;
   const upcoming = decided
     .filter((event) => startOf(event) >= now - RECENTLY_STARTED)
     .sort((a, b) => startOf(a) - startOf(b));

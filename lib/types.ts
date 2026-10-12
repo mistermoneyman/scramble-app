@@ -132,8 +132,17 @@ export type AuditSubmission = {
   submittedAt: number;
 };
 
+/** A person's usual week, plus specific days they can't make anything. */
+export type Availability = {
+  /** weekday * 24 + hour, where weekday 0 is Sunday. Each slot is one hour. */
+  weekly: number[];
+  /** Local midnight of each day they're away. */
+  away: number[];
+};
+
 export type AppState = {
   users: Record<string, User>;
+  availability: Record<string, Availability>;
   orgs: Org[];
   messages: Message[];
   connections: Record<string, ConnectionStatus>;

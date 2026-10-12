@@ -1,7 +1,9 @@
 import { graduatingClass, termEnd } from './academicYear';
+import { slotKey, startOfDay } from './availability';
 import type {
   Activity,
   AppState,
+  Availability,
   FundRequest,
   Message,
   OfficerCard,
@@ -46,6 +48,32 @@ export function createSeed(now: number): AppState {
   const users: Record<string, User> = Object.fromEntries(
     people.map(({ yearsLeft, ...user }) => [user.id, { ...user, gradYear: seniors + yearsLeft }]),
   );
+
+  type Block = [weekdays: number[], fromHour: number, toHour: number];
+  const week = (...blocks: Block[]): Availability => ({
+    weekly: blocks.flatMap(([weekdays, from, to]) =>
+      weekdays.flatMap((weekday) =>
+        Array.from({ length: to - from }, (_, i) => slotKey(weekday, from + i)),
+      ),
+    ),
+    away: [],
+  });
+  const MON_THU = [1, 2, 3, 4];
+  const WEEKDAYS = [1, 2, 3, 4, 5];
+  const availability: Record<string, Availability> = {
+    [ME]: { ...week([MON_THU, 17, 22], [[6], 11, 17], [[0], 12, 20]), away: [startOfDay(now, 10)] },
+    u_maya: week([WEEKDAYS, 18, 22], [[0, 6], 12, 18]),
+    u_priya: week([[1, 3, 4], 17, 22], [[2], 19, 22], [[0, 6], 10, 16]),
+    u_marcus: week([MON_THU, 16, 21], [[5], 15, 23], [[6], 10, 14]),
+    u_leo: week([WEEKDAYS, 18, 23], [[0], 14, 20]),
+    u_tyler: week([[2, 4], 16, 22], [[5, 6], 12, 22]),
+    u_omar: week([MON_THU, 18, 22], [[0, 6], 11, 19]),
+    u_elena: week([[1, 3, 5], 12, 15], [MON_THU, 19, 22]),
+    u_nina: week([WEEKDAYS, 17, 21], [[6], 8, 12]),
+    u_grace: week([[2, 3, 4], 18, 22], [[0], 10, 22]),
+    u_jordan: week([MON_THU, 19, 22], [[6], 8, 18]),
+    u_sam: week([WEEKDAYS, 16, 20]),
+  };
 
   const orgs: Org[] = [
     {
@@ -385,6 +413,7 @@ export function createSeed(now: number): AppState {
 
   return {
     users,
+    availability,
     orgs,
     messages,
     connections: { u_sam: 'incoming' },

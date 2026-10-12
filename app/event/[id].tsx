@@ -2,9 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { Button, EmptyState, OrgBadge, SectionLabel } from '@/components/ui';
+import { Button, EmptyState, OrgBadge, Pill, SectionLabel } from '@/components/ui';
 import { colors, radius } from '@/constants/theme';
 import { useNow } from '@/hooks/useNow';
+import { fitAt, freeMembers, hasAvailability } from '@/lib/availability';
 import { confirm } from '@/lib/confirm';
 import {
   firstName,
@@ -17,7 +18,7 @@ import {
 import { requestStatus } from '@/lib/orgRules';
 import { findPartner } from '@/lib/partners';
 import { isMember, isPollOpen, leadingOption, voteCount } from '@/lib/selectors';
-import { closePoll, ME, toggleVote, useAppState } from '@/lib/store';
+import { closePoll, ME, toggleVote, useAppState, voteWhereFree } from '@/lib/store';
 
 export default function EventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -32,12 +33,35 @@ export default function EventScreen() {
 
   const open = isPollOpen(event, now);
   const member = isMember(org);
-  const leader = leadingOption(event);
+  const leader = leadingOption(state, event);
   const maxVotes = Math.max(1, ...event.options.map((option) => voteCount(event, option.id)));
   const options = [...event.options].sort((a, b) => a.startsAt - b.startsAt);
   const creator = state.users[event.creatorId];
   const isCreator = event.creatorId === ME;
   const orders = state.requests.filter((request) => request.eventId === event.id);
+
+  const myWeek = state.availability[ME];
+  const knowsMyWeek = hasAvailability(myWeek);
+  const fitting = options.filter((option) => fitAt(myWeek, option.startsAt) === 'free');
+  const unconfirmed = fitting.filter((option) => !(event.votes[option.id] ?? []).includes(ME));
+  const leaderFit = fitAt(myWeek, leader.startsAt);
+  const goingToLeader = (event.votes[leader.id] ?? []).includes(ME);
+
+  const vote = (optionId: string, startsAt: number, mine: boolean) => {
+    const fit = fitAt(myWeek, startsAt);
+    if (mine || fit === 'free' || fit === 'unknown') {
+      toggleVote(event.id, optionId);
+      return;
+    }
+    confirm(
+      'Can you make it?',
+      fit === 'away'
+        ? `You marked ${formatDay(startsAt)} as a day you're away.`
+        : `${formatDay(startsAt)} at ${formatTime(startsAt)} is outside your usual availability.`,
+      'I can make it',
+      () => toggleVote(event.id, optionId),
+    );
+  };
 
   const closeNow = () =>
     confirm(
@@ -84,7 +108,60 @@ export default function EventScreen() {
               <Text style={styles.bannerLabel}>It&apos;s happening</Text>
               <Text style={styles.confirmedDate}>{formatDay(leader.startsAt)}</Text>
               <Text style={styles.confirmedTime}>{formatTime(leader.startsAt)}</Text>
+              <Text style={styles.bannerText}>
+                {freeMembers(state, org, leader.startsAt).length} of {org.memberIds.length} members
+                are usually free then.
+              </Text>
             </View>
+          </View>
+        )}
+
+        {member && open && !knowsMyWeek && (
+          <Pressable style={styles.check} onPress={() => router.push('/availability')}>
+            <Ionicons name="time-outline" size={22} color={colors.primary} />
+            <Text style={styles.checkText}>
+              Share your usual week and we&apos;ll check these times against it for you.
+            </Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          </Pressable>
+        )}
+
+        {member && open && knowsMyWeek && (
+          <View style={styles.check}>
+            <Ionicons
+              name={fitting.length ? 'checkmark-done-outline' : 'alert-circle-outline'}
+              size={22}
+              color={fitting.length ? colors.success : colors.primary}
+            />
+            <View style={styles.checkBody}>
+              <Text style={styles.checkText}>
+                {fitting.length === 0
+                  ? 'None of these times fit your usual week. Vote anyway for any you can make.'
+                  : unconfirmed.length === 0
+                    ? `You've confirmed every time that fits your week (${fitting.length} of ${options.length}).`
+                    : `Your usual week fits ${fitting.length} of ${options.length} times. Confirm you can actually make ${fitting.length === 1 ? 'it' : 'them'}.`}
+              </Text>
+              {unconfirmed.length > 0 && (
+                <Button
+                  label={
+                    unconfirmed.length === 1 ? 'I can make that one' : `I can make those ${unconfirmed.length}`
+                  }
+                  icon="checkmark"
+                  onPress={() => voteWhereFree(event.id)}
+                />
+              )}
+            </View>
+          </View>
+        )}
+
+        {member && !open && !goingToLeader && (leaderFit === 'busy' || leaderFit === 'away') && (
+          <View style={styles.check}>
+            <Ionicons name="alert-circle-outline" size={22} color={colors.primary} />
+            <Text style={styles.checkText}>
+              {leaderFit === 'away'
+                ? "Heads up: you marked this as a day you're away."
+                : 'Heads up: this is outside your usual availability.'}
+            </Text>
           </View>
         )}
 
@@ -95,11 +172,13 @@ export default function EventScreen() {
           const count = voters.length;
           const winning = !open && option.id === leader.id;
           const canVote = open && member;
+          const fit = fitAt(myWeek, option.startsAt);
+          const free = freeMembers(state, org, option.startsAt).length;
           return (
             <Pressable
               key={option.id}
               disabled={!canVote}
-              onPress={() => toggleVote(event.id, option.id)}
+              onPress={() => vote(option.id, option.startsAt, mine)}
               style={({ pressed }) => [
                 styles.option,
                 mine && styles.optionMine,
@@ -140,6 +219,14 @@ export default function EventScreen() {
                       .join(', ')}
                   </Text>
                 )}
+                <View style={styles.fitRow}>
+                  <Text style={styles.voters}>
+                    {free} of {org.memberIds.length} usually free
+                  </Text>
+                  {member && fit === 'free' && <Pill label="Fits your week" tone="success" />}
+                  {member && fit === 'busy' && <Pill label="Outside your hours" tone="warning" />}
+                  {member && fit === 'away' && <Pill label="You're away" tone="danger" />}
+                </View>
               </View>
             </Pressable>
           );
@@ -343,5 +430,32 @@ const styles = StyleSheet.create({
   },
   close: {
     marginTop: 10,
+  },
+  fitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  check: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    marginTop: 12,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  checkBody: {
+    flex: 1,
+    gap: 10,
+  },
+  checkText: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

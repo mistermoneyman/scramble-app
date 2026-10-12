@@ -25,6 +25,7 @@ export default function EventsScreen() {
   const orgFilter = scopedOrgs.find((org) => org.id === params.org);
   const visibleOrgIds = new Set(orgFilter ? [orgFilter.id] : scopedOrgs.map((org) => org.id));
   const sections = groupEvents(
+    state,
     state.events.filter((event) => visibleOrgIds.has(event.orgId)),
     now,
   );
