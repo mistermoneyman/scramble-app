@@ -6,7 +6,16 @@ import { Button, EmptyState, OrgBadge, SectionLabel } from '@/components/ui';
 import { colors, radius } from '@/constants/theme';
 import { useNow } from '@/hooks/useNow';
 import { confirm } from '@/lib/confirm';
-import { firstName, formatCountdown, formatDateTime, formatDay, formatTime } from '@/lib/format';
+import {
+  firstName,
+  formatCountdown,
+  formatDateTime,
+  formatDay,
+  formatMoney,
+  formatTime,
+} from '@/lib/format';
+import { requestStatus } from '@/lib/orgRules';
+import { findPartner } from '@/lib/partners';
 import { isMember, isPollOpen, leadingOption, voteCount } from '@/lib/selectors';
 import { closePoll, ME, toggleVote, useAppState } from '@/lib/store';
 
@@ -28,6 +37,7 @@ export default function EventScreen() {
   const options = [...event.options].sort((a, b) => a.startsAt - b.startsAt);
   const creator = state.users[event.creatorId];
   const isCreator = event.creatorId === ME;
+  const orders = state.requests.filter((request) => request.eventId === event.id);
 
   const closeNow = () =>
     confirm(
@@ -143,6 +153,36 @@ export default function EventScreen() {
             onPress={closeNow}
             style={styles.close}
           />
+        )}
+
+        {member && orders.length > 0 && (
+          <>
+            <SectionLabel>Orders</SectionLabel>
+            {orders.map((request) => {
+              const status = requestStatus(request);
+              return (
+                <Pressable
+                  key={request.id}
+                  style={styles.order}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/org/[id]/request/[requestId]',
+                      params: { id: org.id, requestId: request.id },
+                    })
+                  }>
+                  <Text style={styles.orderEmoji}>{findPartner(request.vendorId)?.emoji ?? '🧾'}</Text>
+                  <View style={styles.optionBody}>
+                    <Text style={styles.optionDate}>{request.title}</Text>
+                    <Text style={styles.voters}>
+                      {formatMoney(request.amount)} ·{' '}
+                      {status === 'paid' ? 'Paid and ordered' : status === 'rejected' ? 'Declined' : 'Waiting on officer signatures'}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                </Pressable>
+              );
+            })}
+          </>
         )}
       </ScrollView>
     </>
@@ -286,6 +326,20 @@ const styles = StyleSheet.create({
   voters: {
     color: colors.textMuted,
     fontSize: 12,
+  },
+  order: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  orderEmoji: {
+    fontSize: 24,
   },
   close: {
     marginTop: 10,

@@ -139,6 +139,26 @@ export function HeaderButton({ icon, onPress, label }: { icon: IconName; onPress
   );
 }
 
+export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
+  return <View style={[styles.card, style]}>{children}</View>;
+}
+
+const PILL_TONES = {
+  neutral: { backgroundColor: colors.surfaceMuted, color: colors.textMuted },
+  warning: { backgroundColor: colors.accent, color: colors.text },
+  success: { backgroundColor: colors.successSoft, color: colors.success },
+  danger: { backgroundColor: colors.primarySoft, color: colors.primary },
+};
+
+export function Pill({ label, tone = 'neutral' }: { label: string; tone?: keyof typeof PILL_TONES }) {
+  const { backgroundColor, color } = PILL_TONES[tone];
+  return (
+    <View style={[styles.pill, { backgroundColor }]}>
+      <Text style={[styles.pillText, { color }]}>{label}</Text>
+    </View>
+  );
+}
+
 export function SectionLabel({ children }: { children: ReactNode }) {
   return <Text style={styles.sectionLabel}>{children}</Text>;
 }
@@ -250,7 +270,24 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   headerButton: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
+  },
+  card: {
+    padding: 16,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  pillText: {
+    fontSize: 11,
+    fontWeight: '800',
   },
   sectionLabel: {
     color: colors.textMuted,

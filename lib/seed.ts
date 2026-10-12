@@ -1,4 +1,15 @@
-import type { AppState, Message, OrgEvent, ThreadId, User } from './types';
+import { graduatingClass } from './academicYear';
+import type {
+  Activity,
+  AppState,
+  FundRequest,
+  Message,
+  Org,
+  OrgEvent,
+  ThreadId,
+  Transaction,
+  User,
+} from './types';
 
 export const ME = 'me';
 
@@ -13,25 +24,29 @@ function at(now: number, daysFromNow: number, hour: number, minute = 0) {
   return date.getTime();
 }
 
-const people: User[] = [
-  { id: ME, name: 'Avery Lewis', username: 'averyl' },
-  { id: 'u_maya', name: 'Maya Chen', username: 'mayac' },
-  { id: 'u_priya', name: 'Priya Patel', username: 'priyap' },
-  { id: 'u_marcus', name: 'Marcus Johnson', username: 'mjohnson' },
-  { id: 'u_leo', name: 'Leo Park', username: 'leop' },
-  { id: 'u_tyler', name: 'Tyler Brooks', username: 'tbrooks' },
-  { id: 'u_omar', name: 'Omar Haddad', username: 'omarh' },
-  { id: 'u_elena', name: 'Elena García', username: 'elenag' },
-  { id: 'u_nina', name: 'Nina Okafor', username: 'ninao' },
-  { id: 'u_grace', name: 'Grace Liu', username: 'gracel' },
-  { id: 'u_jordan', name: 'Jordan Kim', username: 'jkim' },
-  { id: 'u_sam', name: 'Sam Rivera', username: 'samr' },
+/** yearsLeft 0 means they graduate at the end of this academic year. */
+const people: (Omit<User, 'gradYear'> & { yearsLeft: number })[] = [
+  { id: ME, name: 'Avery Lewis', username: 'averyl', yearsLeft: 1 },
+  { id: 'u_maya', name: 'Maya Chen', username: 'mayac', yearsLeft: 0 },
+  { id: 'u_priya', name: 'Priya Patel', username: 'priyap', yearsLeft: 1 },
+  { id: 'u_marcus', name: 'Marcus Johnson', username: 'mjohnson', yearsLeft: 0 },
+  { id: 'u_leo', name: 'Leo Park', username: 'leop', yearsLeft: 2 },
+  { id: 'u_tyler', name: 'Tyler Brooks', username: 'tbrooks', yearsLeft: 0 },
+  { id: 'u_omar', name: 'Omar Haddad', username: 'omarh', yearsLeft: 1 },
+  { id: 'u_elena', name: 'Elena García', username: 'elenag', yearsLeft: 2 },
+  { id: 'u_nina', name: 'Nina Okafor', username: 'ninao', yearsLeft: 0 },
+  { id: 'u_grace', name: 'Grace Liu', username: 'gracel', yearsLeft: 1 },
+  { id: 'u_jordan', name: 'Jordan Kim', username: 'jkim', yearsLeft: 1 },
+  { id: 'u_sam', name: 'Sam Rivera', username: 'samr', yearsLeft: 0 },
 ];
 
 export function createSeed(now: number): AppState {
-  const users = Object.fromEntries(people.map((user) => [user.id, user]));
+  const seniors = graduatingClass(now);
+  const users: Record<string, User> = Object.fromEntries(
+    people.map(({ yearsLeft, ...user }) => [user.id, { ...user, gradYear: seniors + yearsLeft }]),
+  );
 
-  const orgs = [
+  const orgs: Org[] = [
     {
       id: 'startup',
       name: 'Startup Club',
@@ -39,6 +54,8 @@ export function createSeed(now: number): AppState {
       emoji: '🚀',
       color: '#FDE3D8',
       memberIds: [ME, 'u_maya', 'u_priya', 'u_marcus', 'u_leo'],
+      officers: { u_maya: 'president', [ME]: 'treasurer', u_priya: 'vp' },
+      successors: {},
     },
     {
       id: 'soccer',
@@ -47,6 +64,8 @@ export function createSeed(now: number): AppState {
       emoji: '⚽',
       color: '#DDEFE2',
       memberIds: [ME, 'u_marcus', 'u_tyler', 'u_omar', 'u_elena'],
+      officers: { u_marcus: 'president', u_tyler: 'treasurer' },
+      successors: { u_marcus: 'u_omar' },
     },
     {
       id: 'photo',
@@ -55,6 +74,8 @@ export function createSeed(now: number): AppState {
       emoji: '📷',
       color: '#E3E8F7',
       memberIds: [ME, 'u_maya', 'u_nina', 'u_grace'],
+      officers: { [ME]: 'president', u_nina: 'treasurer', u_grace: 'secretary' },
+      successors: {},
     },
     {
       id: 'debate',
@@ -63,6 +84,8 @@ export function createSeed(now: number): AppState {
       emoji: '🎤',
       color: '#F3E1F5',
       memberIds: ['u_priya', 'u_jordan', 'u_leo', 'u_sam'],
+      officers: { u_sam: 'president', u_priya: 'treasurer' },
+      successors: {},
     },
     {
       id: 'climb',
@@ -71,6 +94,8 @@ export function createSeed(now: number): AppState {
       emoji: '🧗',
       color: '#FFF0C9',
       memberIds: ['u_tyler', 'u_nina', 'u_jordan', 'u_omar'],
+      officers: { u_jordan: 'president', u_tyler: 'treasurer' },
+      successors: {},
     },
     {
       id: 'film',
@@ -79,6 +104,8 @@ export function createSeed(now: number): AppState {
       emoji: '🎬',
       color: '#E0F0F2',
       memberIds: ['u_grace', 'u_elena', 'u_sam', 'u_leo'],
+      officers: { u_grace: 'president', u_elena: 'treasurer' },
+      successors: {},
     },
   ];
 
@@ -192,11 +219,177 @@ export function createSeed(now: number): AppState {
     },
   ];
 
+  let txCount = 0;
+  const tx = (
+    orgId: string,
+    direction: Transaction['direction'],
+    dollars: number,
+    description: string,
+    category: Transaction['category'],
+    daysAgo: number,
+    extra: Partial<Transaction> = {},
+  ): Transaction => ({
+    id: `seed_t${txCount++}`,
+    orgId,
+    direction,
+    amount: Math.round(dollars * 100),
+    description,
+    category,
+    method: direction === 'in' ? 'deposit' : 'card',
+    at: now - daysAgo * DAY,
+    ...extra,
+  });
+  const viaRequest = (requestId: string, vendorId?: string) =>
+    ({ method: 'request', requestId, vendorId }) as const;
+
+  const transactions: Transaction[] = [
+    tx('startup', 'in', 1500, 'Fall allocation', 'University allocation', 55),
+    tx('startup', 'in', 400, 'Fall dues (20 members)', 'Member dues', 40),
+    tx('startup', 'in', 500, 'First Campus Credit Union', 'Sponsorship', 20),
+    tx('startup', 'out', 119.99, 'Canva Pro (annual)', 'Marketing', 35),
+    tx('startup', 'out', 96, 'Pizza for kickoff GBM', 'Food', 28, viaRequest('seed_r_kickoff', 'slice')),
+    tx('startup', 'out', 32, 'Coffee for founder panel', 'Food', 14, viaRequest('seed_r_coffee', 'coffee')),
+    tx('startup', 'out', 85, 'Club stickers', 'Marketing', 10),
+    tx('photo', 'in', 800, 'Fall allocation', 'University allocation', 50),
+    tx('photo', 'in', 240, 'Fall dues (12 members)', 'Member dues', 38),
+    tx('photo', 'out', 142, 'Darkroom paper', 'Supplies', 30),
+    tx('photo', 'out', 36, 'Cookies for critique night', 'Food', 12, viaRequest('seed_r_cookies', 'bakery')),
+    tx('soccer', 'in', 600, 'Fall allocation', 'University allocation', 52),
+    tx('soccer', 'out', 420, 'Team jerseys', 'Supplies', 33, viaRequest('seed_r_jerseys')),
+    tx('debate', 'in', 700, 'Fall allocation', 'University allocation', 52),
+    tx('debate', 'out', 180, 'Tournament registration', 'Travel', 21),
+    tx('climb', 'in', 500, 'Fall allocation', 'University allocation', 52),
+    tx('climb', 'out', 220, 'Gym day passes', 'Events', 16),
+    tx('film', 'in', 650, 'Fall allocation', 'University allocation', 52),
+    tx('film', 'out', 48, 'Popcorn and snacks', 'Food', 9),
+  ];
+
+  const signed = (userIds: string[], daysAgo: number) =>
+    userIds.map((userId, i) => ({ userId, at: now - daysAgo * DAY + i * HOUR }));
+
+  const requests: FundRequest[] = [
+    {
+      id: 'seed_r_kickoff',
+      orgId: 'startup',
+      title: 'Pizza for kickoff GBM',
+      amount: 9600,
+      category: 'Food',
+      vendorId: 'slice',
+      items: [{ name: 'Large pepperoni pizza', quantity: 6, unitPrice: 1600 }],
+      note: 'First general body meeting of the semester.',
+      requestedBy: 'u_maya',
+      createdAt: now - 29 * DAY,
+      signatures: signed(['u_maya', ME, 'u_priya'], 29),
+      paidAt: now - 28 * DAY,
+    },
+    {
+      id: 'seed_r_coffee',
+      orgId: 'startup',
+      title: 'Coffee for founder panel',
+      amount: 3200,
+      category: 'Food',
+      vendorId: 'coffee',
+      items: [{ name: 'Coffee traveler (serves 12)', quantity: 1, unitPrice: 3200 }],
+      note: '',
+      requestedBy: ME,
+      createdAt: now - 15 * DAY,
+      signatures: signed([ME, 'u_maya', 'u_priya'], 15),
+      paidAt: now - 14 * DAY,
+    },
+    {
+      id: 'seed_r_pitch',
+      orgId: 'startup',
+      title: 'Pizza for Pitch Night',
+      amount: 20000,
+      category: 'Food',
+      vendorId: 'slice',
+      items: [
+        { name: 'Large pepperoni pizza', quantity: 8, unitPrice: 1600 },
+        { name: 'Large cheese pizza', quantity: 4, unitPrice: 1400 },
+        { name: 'Garlic knots (dozen)', quantity: 2, unitPrice: 800 },
+      ],
+      eventId: 'seed_pitch',
+      note: 'Expecting about 40 people.',
+      requestedBy: 'u_maya',
+      createdAt: now - 5 * HOUR,
+      signatures: [
+        { userId: 'u_maya', at: now - 5 * HOUR },
+        { userId: 'u_priya', at: now - 3 * HOUR },
+      ],
+    },
+    {
+      id: 'seed_r_cookies',
+      orgId: 'photo',
+      title: 'Cookies for critique night',
+      amount: 3600,
+      category: 'Food',
+      vendorId: 'bakery',
+      items: [{ name: 'Cookies (dozen)', quantity: 2, unitPrice: 1800 }],
+      note: '',
+      requestedBy: 'u_grace',
+      createdAt: now - 13 * DAY,
+      signatures: signed(['u_grace', ME, 'u_nina'], 13),
+      paidAt: now - 12 * DAY,
+    },
+    {
+      id: 'seed_r_chem',
+      orgId: 'photo',
+      title: 'Darkroom chemicals',
+      amount: 6400,
+      category: 'Supplies',
+      note: 'Developer and fixer for the rest of the semester.',
+      requestedBy: ME,
+      createdAt: now - 2 * HOUR,
+      signatures: [{ userId: ME, at: now - 2 * HOUR }],
+    },
+    {
+      id: 'seed_r_jerseys',
+      orgId: 'soccer',
+      title: 'Team jerseys',
+      amount: 42000,
+      category: 'Supplies',
+      note: '',
+      requestedBy: 'u_marcus',
+      createdAt: now - 34 * DAY,
+      signatures: signed(['u_marcus', 'u_tyler'], 34),
+      paidAt: now - 33 * DAY,
+    },
+  ];
+
+  let activityCount = 0;
+  const activity = (orgId: string, actorId: string, text: string, ago: number): Activity => ({
+    id: `seed_a${activityCount++}`,
+    orgId,
+    actorId,
+    text,
+    at: now - ago,
+  });
+
   return {
     users,
     orgs,
     messages,
     connections: { u_sam: 'incoming' },
     events,
+    transactions,
+    requests,
+    cards: {
+      startup: { last4: '4821', monthlyLimit: 50000, frozen: false },
+      photo: { last4: '1937', monthlyLimit: 25000, frozen: false },
+      soccer: { last4: '5502', monthlyLimit: 25000, frozen: false },
+      debate: { last4: '7710', monthlyLimit: 25000, frozen: false },
+      climb: { last4: '3348', monthlyLimit: 10000, frozen: false },
+      film: { last4: '9024', monthlyLimit: 10000, frozen: false },
+    },
+    activity: [
+      activity('startup', 'u_maya', 'Maya Chen made Avery Lewis treasurer', 60 * DAY),
+      activity('startup', 'u_maya', 'Maya Chen made Priya Patel vice president', 60 * DAY),
+      activity('startup', 'u_maya', 'Maya Chen requested $200.00 for Pizza for Pitch Night', 5 * HOUR),
+      activity('photo', ME, 'Avery Lewis became president', 70 * DAY),
+      activity('photo', ME, 'Avery Lewis made Nina Okafor treasurer', 70 * DAY),
+      activity('photo', ME, 'Avery Lewis requested $64.00 for Darkroom chemicals', 2 * HOUR),
+      activity('soccer', 'u_marcus', 'Marcus Johnson lined up Omar Haddad to take over as president', 4 * DAY),
+    ],
+    audits: {},
   };
 }

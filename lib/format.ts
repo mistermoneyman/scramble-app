@@ -32,6 +32,13 @@ export function formatCountdown(ms: number) {
   return `${seconds}s`;
 }
 
+const moneyFormat = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+/** Amounts are stored in cents. */
+export const formatMoney = (cents: number) => moneyFormat.format(cents / 100);
+
+export const formatDate = (ts: number) => shortDateFormat.format(ts);
+
 export function firstName(name: string) {
   return name.split(' ')[0];
 }

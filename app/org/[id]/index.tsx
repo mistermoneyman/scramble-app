@@ -25,13 +25,20 @@ export default function OrgScreen() {
           options={{
             title: `${org.emoji} ${org.name}`,
             headerRight: () => (
-              <HeaderButton
-                icon="calendar-outline"
-                label={`${org.name} events`}
-                onPress={() =>
-                  router.navigate({ pathname: '/events', params: { scope: 'mine', org: org.id } })
-                }
-              />
+              <View style={styles.headerButtons}>
+                <HeaderButton
+                  icon="calendar-outline"
+                  label={`${org.name} events`}
+                  onPress={() =>
+                    router.navigate({ pathname: '/events', params: { scope: 'mine', org: org.id } })
+                  }
+                />
+                <HeaderButton
+                  icon="briefcase-outline"
+                  label={`Manage ${org.name}`}
+                  onPress={() => router.push({ pathname: '/org/[id]/manage', params: { id: org.id } })}
+                />
+              </View>
             ),
           }}
         />
@@ -75,6 +82,9 @@ export default function OrgScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerButtons: {
+    flexDirection: 'row',
+  },
   about: {
     alignItems: 'center',
     paddingHorizontal: 28,

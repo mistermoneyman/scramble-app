@@ -3,12 +3,14 @@ import { router, Tabs } from 'expo-router';
 
 import { HeaderButton } from '@/components/ui';
 import { colors } from '@/constants/theme';
+import { awaitingMySignature } from '@/lib/orgRules';
 import { connectionsWithStatus } from '@/lib/selectors';
 import { useAppState } from '@/lib/store';
 
 export default function TabsLayout() {
   const state = useAppState();
   const requestCount = connectionsWithStatus(state, 'incoming').length;
+  const signatureCount = awaitingMySignature(state).length;
 
   return (
     <Tabs
@@ -43,6 +45,7 @@ export default function TabsLayout() {
         name="orgs"
         options={{
           title: 'Orgs',
+          tabBarBadge: signatureCount || undefined,
           tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" color={color} size={size} />,
         }}
       />

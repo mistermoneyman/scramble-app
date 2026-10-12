@@ -3,10 +3,11 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { EmptyState, OrgBadge, Segmented } from '@/components/ui';
+import { EmptyState, OrgBadge, Pill, Segmented } from '@/components/ui';
 import { colors } from '@/constants/theme';
 import { useNow } from '@/hooks/useNow';
 import { formatRelative } from '@/lib/format';
+import { awaitingMySignature } from '@/lib/orgRules';
 import { isMember, lastMessage, myOrgs } from '@/lib/selectors';
 import { ME, useAppState } from '@/lib/store';
 
@@ -21,6 +22,10 @@ export default function OrgsScreen() {
   const state = useAppState();
   const now = useNow();
   const [scope, setScope] = useState<Scope>('mine');
+  const signaturesByOrg = new Map<string, number>();
+  for (const request of awaitingMySignature(state)) {
+    signaturesByOrg.set(request.orgId, (signaturesByOrg.get(request.orgId) ?? 0) + 1);
+  }
 
   const orgs = (scope === 'mine' ? myOrgs(state) : state.orgs)
     .map((org) => ({ org, last: isMember(org) ? lastMessage(state, `org:${org.id}`) : undefined }))
@@ -64,6 +69,9 @@ export default function OrgsScreen() {
               <Text style={styles.preview} numberOfLines={1}>
                 {last ? `${sender}: ${last.text}` : `${org.memberIds.length} members`}
               </Text>
+              {(signaturesByOrg.get(org.id) ?? 0) > 0 && (
+                <Pill label={`${signaturesByOrg.get(org.id)} to sign`} tone="warning" />
+              )}
             </View>
             {!member && (
               <View style={styles.joinHint}>

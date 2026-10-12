@@ -26,6 +26,10 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="people" options={{ title: 'New message' }} />
         <Stack.Screen name="event/new" options={{ title: 'New event', presentation: 'modal' }} />
+        <Stack.Screen
+          name="org/[id]/request/new"
+          options={{ title: 'Spend from account', presentation: 'modal' }}
+        />
       </Stack>
       {showIntro && (
         <Intro
