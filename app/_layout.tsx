@@ -4,7 +4,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { Intro, INTRO_BACKGROUND } from '@/components/Intro';
+import { Intro } from '@/components/Intro';
+import { colors } from '@/constants/theme';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -13,7 +14,19 @@ export default function RootLayout() {
 
   return (
     <View style={styles.root}>
-      <Stack screenOptions={{ headerShown: false }} />
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          headerTintColor: colors.primary,
+          headerTitleStyle: { color: colors.text, fontWeight: '700' },
+          headerBackButtonDisplayMode: 'minimal',
+          contentStyle: { backgroundColor: colors.background },
+        }}>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="people" options={{ title: 'New message' }} />
+        <Stack.Screen name="event/new" options={{ title: 'New event', presentation: 'modal' }} />
+      </Stack>
       {showIntro && (
         <Intro
           onReady={() => void SplashScreen.hideAsync()}
@@ -28,6 +41,6 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: INTRO_BACKGROUND,
+    backgroundColor: colors.background,
   },
 });
